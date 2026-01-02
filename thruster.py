@@ -32,9 +32,39 @@ class XboxController(object):
         self.RightDPad = 0
         self.UpDPad = 0
         self.DownDPad = 0
+        joy  = 1.0 / self.Max_Joy_Val
+        trig = 1.0 / self.Max_Trig_Val
+        # maps all event vals to self gamepad stuff
+        self._event_map = {
+            "ABS_Y": ("LeftJoystickY",  joy),
+            "ABS_X": ("LeftJoystickX",  joy),
+            "ABS_RY": ("RightJoystickY", joy),
+            "ABS_RX": ("RightJoystickX", joy),
 
-        self._monitor_thread = threading.Thread(target=self._monitor_controller, args=())
-        self._monitor_thread.daemon = True
+            "ABS_Z":  ("LeftTrigger",  trig),
+            "ABS_RZ": ("RightTrigger", trig),
+
+            "BTN_TL": ("LeftBumper",  1.0),
+            "BTN_TR": ("RightBumper", 1.0),
+
+            "BTN_SOUTH": ("A", 1.0),
+            "BTN_NORTH": ("Y", 1.0),
+            "BTN_WEST":  ("X", 1.0),
+            "BTN_EAST":  ("B", 1.0),
+
+            "BTN_THUMBL": ("LeftThumb",  1.0),
+            "BTN_THUMBR": ("RightThumb", 1.0),
+
+            "BTN_SELECT": ("Back",  1.0),
+            "BTN_START":  ("Start", 1.0),
+
+            "BTN_TRIGGER_HAPPY1": ("LeftDPad",  1.0),
+            "BTN_TRIGGER_HAPPY2": ("RightDPad", 1.0),
+            "BTN_TRIGGER_HAPPY3": ("UpDPad",    1.0),
+            "BTN_TRIGGER_HAPPY4": ("DownDPad",  1.0),
+        }
+
+        self._monitor_thread = threading.Thread(target=self._monitor_controller, args=(), daemon=True)
         self._monitor_thread.start()
 
     def read(self):
@@ -52,7 +82,17 @@ class XboxController(object):
         return prev * (1- factor) + new * factor
 
     def _monitor_controller(self):
+        while True:
+            for event in self.gamepad.read():
+                mapping = self._event_map.get(event.code)
+                if mapping is None:
+                    continue  # ignore events we don't care about
 
+                attr, mul = mapping
+                # Example:
+                #   event.code="ABS_Y" -> attr="LeftJoystickY", mul=1/MAX_JOY_VAL
+                #   event.code="BTN_SOUTH" -> attr="A", mul=1
+                setattr(self, attr, event.state * mul)
 
 SERVER_IP = ''
 SERVER_PORT = 
