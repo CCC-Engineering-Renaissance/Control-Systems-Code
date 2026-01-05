@@ -32,6 +32,16 @@ class XboxController(object):
         self.RightDPad = 0
         self.UpDPad = 0
         self.DownDPad = 0
+
+        self._filtered = {
+            "LeftJoystickY" : 0.0,
+            "LeftJoystickX" : 0.0,
+            "RightJoystickY" : 0.0,
+            "RightJoystickX" : 0.0,
+            "LeftTrigger" : 0.0,
+            "RightTrigger" : 0.0,
+        }
+
         joy  = 1.0 / self.Max_Joy_Val
         trig = 1.0 / self.Max_Trig_Val
         # maps all event vals to self gamepad stuff
@@ -67,19 +77,28 @@ class XboxController(object):
         self._monitor_thread = threading.Thread(target=self._monitor_controller, args=(), daemon=True)
         self._monitor_thread.start()
 
-    def read(self):
-        x = self.LeftJoystickX
-        y = self.LeftJoystickY
-        a = self.A
-        b = self.X
-        rb = self.RightBumper
-        return [x, y, a, b, rb]
-
     def apply_deadzone(self, value, dz = 0.05):
         return 0 if abs(value) < dz else value #deadzones added no stick drift
 
     def smooth(self, prev, new, factor=0.2):
         return prev * (1- factor) + new * factor
+
+    def axis(self, name, dz=0.5, factor=0.2):
+        raw = float(getattr(self, name))
+        raw = self.apply_deadzone(raw, dz)
+        prev = self._filtered.get(name, 0.0)
+        val = self.smooth(prev, raw, factor)
+        self._filtered[name] = val
+        return val
+
+    def read(self):
+        x = self.axis("LeftJoystickX")
+        y = self.axis("LeftJoystickY")
+        a = self.A
+        b = self.X
+        rb = self.RightBumper
+        return [x, y, a, b, rb]
+
 
     def _monitor_controller(self):
         while True:
@@ -110,9 +129,12 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
     sock.settimeout(2.0)
 
     while True:
+        rjy = joyROV.axis("RightJoystickY", dz = 0.5, factor = 0.2)
+        rjx = joyROV.axis("RightJoystickX", dz = 0.5, factor = 0.2)
+
         if als:
-            pitchAngle += pow(joyROV.RightJoystickY, 3) * 0.001
-            yawAngle += pow(joyROV.RightJoystickX, 3) * 0.001
+            pitchAngle += (rjy ** 3) * 0.001
+            yawAngle += (rjx ** 3) * 0.001
 
         if joyROV.Y == 1 and not pushed:
             als = not als
@@ -137,6 +159,16 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             scale = 1.5
 
         out = 1 if als else 0
+
+        ljy = joyROV.axis("LeftJoystickY", dz = 0.05, factor = 0.2)
+        ljx = joyROV.axis("LeftJoystickX", dz = 0.05, factor = 0.2)
+        lt = joyROV.axis("LeftTrigger", dz = 0.02, factor = 0.2)
+        rt = joyROV.axis("RightTrigger", dz = 0.02, factor = 0.2)
+
+        claw_rjy = joyClaw.axis("RightJoystickY", dz = 0.05, factor = 0.2)
+        claw_rjx = joyClaw.axis("RightJoystickX", dz = 0.05, factor = 0.2)
+        claw_ljy = joyClaw.axis("LeftJoystickY",  dz = 0.05, factor = 0.2)
+
 
         MESSAGE = (
             str(joyROV.LeftJoystickY * scale * 1.5) + " " +
