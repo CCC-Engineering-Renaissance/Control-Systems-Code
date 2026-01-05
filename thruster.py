@@ -83,7 +83,7 @@ class XboxController(object):
     def smooth(self, prev, new, factor=0.2):
         return prev * (1- factor) + new * factor
 
-    def axis(self, name, dz=0.5, factor=0.2):
+    def axis(self, name, dz=0.05, factor=0.2):
         raw = float(getattr(self, name))
         raw = self.apply_deadzone(raw, dz)
         prev = self._filtered.get(name, 0.0)
@@ -129,8 +129,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
     sock.settimeout(2.0)
 
     while True:
-        rjy = joyROV.axis("RightJoystickY", dz = 0.5, factor = 0.2)
-        rjx = joyROV.axis("RightJoystickX", dz = 0.5, factor = 0.2)
+        rjy = joyROV.axis("RightJoystickY", dz=0.05, factor=0.2)
+        rjx = joyROV.axis("RightJoystickX", dz=0.05, factor=0.2)
 
         if als:
             pitchAngle += (rjy ** 3) * 0.001
@@ -159,48 +159,48 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             scale = 1.5
 
         out = 1 if als else 0
+        rjy = joyROV.axis("RightJoystickY", dz=0.05, factor=0.2)
+        rjx = joyROV.axis("RightJoystickX", dz=0.05, factor=0.2)
 
-        ljy = joyROV.axis("LeftJoystickY", dz = 0.05, factor = 0.2)
-        ljx = joyROV.axis("LeftJoystickX", dz = 0.05, factor = 0.2)
-        lt = joyROV.axis("LeftTrigger", dz = 0.02, factor = 0.2)
-        rt = joyROV.axis("RightTrigger", dz = 0.02, factor = 0.2)
+        ljy = joyROV.axis("LeftJoystickY", dz=0.05, factor=0.2)
+        ljx = joyROV.axis("LeftJoystickX", dz=0.05, factor=0.2)
+        lt  = joyROV.axis("LeftTrigger",   dz=0.02, factor=0.2)
+        rt  = joyROV.axis("RightTrigger",  dz=0.02, factor=0.2)
 
-        claw_rjy = joyClaw.axis("RightJoystickY", dz = 0.05, factor = 0.2)
-        claw_rjx = joyClaw.axis("RightJoystickX", dz = 0.05, factor = 0.2)
-        claw_ljy = joyClaw.axis("LeftJoystickY",  dz = 0.05, factor = 0.2)
-
+        claw_rjy = joyClaw.axis("RightJoystickY", dz=0.05, factor=0.2)
+        claw_rjx = joyClaw.axis("RightJoystickX", dz=0.05, factor=0.2)
+        claw_ljy = joyClaw.axis("LeftJoystickY",  dz=0.05, factor=0.2)
 
         MESSAGE = (
-            str(joyROV.LeftJoystickY * scale * 1.5) + " " +
-            str(joyROV.LeftJoystickX * scale * -1) + " " +
-            str((joyROV.RightTrigger - joyROV.LeftTrigger) / -3.0 * scale) + " " +
-            str(joyROV.RightJoystickX * 0.66 * scale * -2) + " " +
-            str(joyROV.RightJoystickY * 0.66 * scale * 2) + " " +
-            str((joyROV.RightBumper - joyROV.LeftBumper) * scale) + " " +
-            str(round(pow(joyClaw.RightJoystickY, 3), 1) * 0.4) + " " +
-            str(int(joyClaw.B) - int(joyClaw.A) * 1.4) + " " +
-            str(round(pow(joyClaw.RightJoystickX, 3), 1) * 0.15) + " " +
-            str(pow(joyClaw.LeftJoystickY, 3) * -0.25) + " " +
-            str(pitchAngle) + " " +
-            str(yawAngle) + " " +
-            str(out)
-        )
-
+             str(ljy * scale * 1.5) + " " +
+             str(ljx * scale * -1) + " " +
+             str((rt - lt) / -3.0 * scale) + " " +
+             str(rjx * 0.66 * scale * -2) + " " +
+             str(rjy * 0.66 * scale * 2) + " " +
+             str((joyROV.RightBumper - joyROV.LeftBumper) * scale) + " " +
+             str(round((claw_rjy ** 3), 1) * 0.4) + " " +
+             str(int(joyClaw.B) - int(joyClaw.A) * 1.4) + " " +
+             str(round((claw_rjx ** 3), 1) * 0.15) + " " +
+             str((claw_ljy ** 3) * -0.25) + " " +
+             str(pitchAngle) + " " +
+             str(yawAngle) + " " +
+             str(out)
+    )
         print(
-            f"X: {joyROV.LeftJoystickY:.2f}",
-            f"Y: {joyROV.LeftJoystickX:.2f}",
-            f"Z: {(joyROV.RightTrigger - joyROV.LeftTrigger) / 4.0:.2f}",
+            f"X: {ljy:.2f}",
+            f"Y: {ljx:.2f}",
+            f"Z: {(rt - lt) / 4.0:.2f}",
             f"Roll: {joyROV.RightBumper - joyROV.LeftBumper}",
-            f"Pitch: {joyROV.RightJoystickY:.2f}",
-            f"Yaw: {joyROV.RightJoystickX:.2f}",
-            f"Claw Pitch: {pow(joyClaw.RightJoystickY * -1, 3):.1f}",
+            f"Pitch: {rjy:.2f}",
+            f"Yaw: {rjx:.2f}",
+            f"Claw Pitch: {(-claw_rjy) ** 3:.1f}",
             f"Claw Open: {joyClaw.RightTrigger - joyClaw.LeftTrigger:.1f}",
-            f"Claw Yaw: {joyClaw.RightJoystickX:.1f}",
+            f"Claw Yaw: {claw_rjx:.1f}",
             f"Claw Rotate: {joyClaw.LeftJoystickX:.1f}",
             f"PitchAngle: {pitchAngle:.1f}",
             f"YawAngle: {yawAngle:.1f}",
             als
-        )
+)
 
         sock.sendto(MESSAGE.encode(), (SERVER_IP, SERVER_PORT))
 
