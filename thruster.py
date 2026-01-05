@@ -27,7 +27,6 @@ class XboxController(object):
         self.RightThumb = 0
         self.Back = 0
         self.Start = 0
-        self.Start = 0
         self.LeftDPad = 0
         self.RightDPad = 0
         self.UpDPad = 0
