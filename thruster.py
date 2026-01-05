@@ -8,7 +8,7 @@ import time
 class XboxController(object):
     Max_Trig_Val = math.pow(2, 8)
     Max_Joy_Val = math.pow(2, 15)
-
+    # initializes buttons and analogue inputs
     def __init__(self, gamepad):
         self.gamepad = gamepad
         self.LeftJoystickY = 0
@@ -76,10 +76,10 @@ class XboxController(object):
 
         self._monitor_thread = threading.Thread(target=self._monitor_controller, args=(), daemon=True)
         self._monitor_thread.start()
-
+    #deadzones for analogue inputs
     def apply_deadzone(self, value, dz = 0.05):
-        return 0 if abs(value) < dz else value #deadzones added no stick drift
-
+        return 0 if abs(value) < dz else value 
+    # analogue smoothing(?)
     def smooth(self, prev, new, factor=0.2):
         return prev * (1- factor) + new * factor
 
@@ -90,7 +90,7 @@ class XboxController(object):
         val = self.smooth(prev, raw, factor)
         self._filtered[name] = val
         return val
-
+    # read analogue inputs
     def read(self):
         x = self.axis("LeftJoystickX")
         y = self.axis("LeftJoystickY")
@@ -98,8 +98,7 @@ class XboxController(object):
         b = self.X
         rb = self.RightBumper
         return [x, y, a, b, rb]
-
-
+    
     def _monitor_controller(self):
         while True:
             for event in self.gamepad.read():
