@@ -127,6 +127,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
     sock.settimeout(2.0)
 
     while True:
+
         rjy = joyROV.axis("RightJoystickY", dz=0.05, factor=0.2)
         rjx = joyROV.axis("RightJoystickX", dz=0.05, factor=0.2)
 
@@ -157,9 +158,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             scale = 1.5
 
         out = 1 if als else 0
-        rjy = joyROV.axis("RightJoystickY", dz=0.05, factor=0.2)
-        rjx = joyROV.axis("RightJoystickX", dz=0.05, factor=0.2)
-
+     
         ljy = joyROV.axis("LeftJoystickY", dz=0.05, factor=0.2)
         ljx = joyROV.axis("LeftJoystickX", dz=0.05, factor=0.2)
         lt  = joyROV.axis("LeftTrigger",   dz=0.02, factor=0.2)
