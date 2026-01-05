@@ -172,20 +172,20 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         claw_ljy = joyClaw.axis("LeftJoystickY",  dz=0.05, factor=0.2)
 
         MESSAGE = (
-             str(ljy * scale * 1.5) + " " +
-             str(ljx * scale * -1) + " " +
-             str((rt - lt) / -3.0 * scale) + " " +
-             str(rjx * 0.66 * scale * -2) + " " +
-             str(rjy * 0.66 * scale * 2) + " " +
-             str((joyROV.RightBumper - joyROV.LeftBumper) * scale) + " " +
-             str(round((claw_rjy ** 3), 1) * 0.4) + " " +
-             str(int(joyClaw.B) - int(joyClaw.A) * 1.4) + " " +
-             str(round((claw_rjx ** 3), 1) * 0.15) + " " +
-             str((claw_ljy ** 3) * -0.25) + " " +
-             str(pitchAngle) + " " +
-             str(yawAngle) + " " +
-             str(out)
-    )
+            str(ljy * scale * 1.5) + " " +
+            str(ljx * scale * -1) + " " +
+            str((rt - lt) / -3.0 * scale) + " " +
+            str(rjx * 0.66 * scale * -2) + " " +
+            str(rjy * 0.66 * scale * 2) + " " +
+            str((joyROV.RightBumper - joyROV.LeftBumper) * scale) + " " +
+            str(round((claw_rjy ** 3), 1) * 0.4) + " " +
+            str(int(joyClaw.B) - int(joyClaw.A) * 1.4) + " " +
+            str(round((claw_rjx ** 3), 1) * 0.15) + " " +
+            str((claw_ljy ** 3) * -0.25) + " " +
+            str(pitchAngle) + " " +
+            str(yawAngle) + " " +
+            str(out)
+        )
         print(
             f"X: {ljy:.2f}",
             f"Y: {ljx:.2f}",
@@ -200,7 +200,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             f"PitchAngle: {pitchAngle:.1f}",
             f"YawAngle: {yawAngle:.1f}",
             als
-)
+        )
 
         sock.sendto(MESSAGE.encode(), (SERVER_IP, SERVER_PORT))
 
