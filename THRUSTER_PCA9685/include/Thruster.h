@@ -25,5 +25,6 @@ private:
 public:
   // Constructors
   Thruster();
-  // to be continued
+  explicit Thruster(int pin);
+  Thruster(int pin, int rest);
 };
