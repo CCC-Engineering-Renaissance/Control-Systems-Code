@@ -1,5 +1,7 @@
 # Thruster.h design notesi
 
+Useful Statement: If a method does not promise motion, it must not require the driver.
+
 ### Constructors
 
 ## 'explicit Thruster(int pin)'
@@ -26,7 +28,30 @@
 
     - It is the same concept as Thruster(int pin, int rest) where the rest value isn't always perfect for every thruster. The same can be said for the offset value.
     
-### Setters
+### Set Methods
    
 ## 'void setPWM(int pwm_us, PiPCA9685::PCA9685& driver)'
+    Sends exact PWM value to PCA9685 output pin that the thruster is bound to.
+
+    - We use the driver class because the driver is what converses with the hardware to get the thrusters to move.
     
+## 'void setPower(double power, PiPCA9685::PCA9685 &driver)'
+    Exists to be able to produce a certain amount of thrust at this instant.
+
+    - The intent is to be able to command thrusters with a normalized value instead of raw PWM values
+
+## 'void stop(PiPCA9685::PCA9685 &driver);'
+    Thruster will be able to enter a neatral state with this.
+
+    - Same idea with setPower above, however this is an option to completely stop the thrusters 
+
+## 'setRest(int rest_us)', 'setOffset(int offset_us)', and 'setLimits(int min_us, int max_us)'
+    These last Set Methods share a similar goal.
+
+    - They will be able to change internal rules that will be used for future commands
+    - We may start with an object like Thruster thruster_3(3, 1500, 400) and later we have a situation where rather than changing our constructor
+      values we would rather use these set methods.
+
+### Get Methods
+
+
