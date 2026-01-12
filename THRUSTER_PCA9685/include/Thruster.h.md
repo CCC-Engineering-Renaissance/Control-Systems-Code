@@ -1,4 +1,6 @@
-# Thruster.h design notes
+# Thruster.h design notesi
+
+### Constructors
 
 ## 'explicit Thruster(int pin)'
     This constructor creates a 'Thruster' object and binds it to a PCA9685 output pin
@@ -19,5 +21,12 @@
     - We could say Thruster thruster_3(3, 1496) if 1496 us is more responsive than 1500 us
 
     
+## 'Thruster(int pin, int rest, int offset)'
+    This constructor creates a 'Thruster' object and binds it to a PCA9685 output pin, decides what PWM value is to stop the thruster object, and define how far the thruster is allowed to deviate from rest.
+
+    - It is the same concept as Thruster(int pin, int rest) where the rest value isn't always perfect for every thruster. The same can be said for the offset value.
     
+### Setters
+   
+## 'void setPWM(int pwm_us, PiPCA9685::PCA9685& driver)'
     
