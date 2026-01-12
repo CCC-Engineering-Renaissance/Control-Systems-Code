@@ -27,4 +27,21 @@ public:
   Thruster();
   explicit Thruster(int pin);
   Thruster(int pin, int rest);
+  Thruster(int pin, int rest, int offset);
+
+  // Sets
+  void setPWM(int pwm_us, PiPCA9685::PCA9685 &driver);
+  void setPower(double power, PiPCA9685::PCA9685 &driver);
+  void stop(PiPCA9685::PCA9685 &driver);
+
+  void setRest(int rest_us);
+  void setOffset(int offset_us);
+  void setLimits(int min_us, int max_us);
+
+  // Gets
+  int getPin() const;
+  int getRest() const;
+  int getOffset() const;
+  int getPWM() const;
+  double getPower() const;
 };
