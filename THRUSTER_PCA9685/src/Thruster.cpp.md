@@ -1,0 +1,2 @@
+# Thruster.cpp design notes
+
