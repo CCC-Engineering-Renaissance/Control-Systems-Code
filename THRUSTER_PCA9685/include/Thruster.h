@@ -39,6 +39,7 @@ public:
   void setLimits(int min_us, int max_us);
 
   // Gets
+  // testing if this works
   int getPin() const;
   int getRest() const;
   int getOffset() const;
