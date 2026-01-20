@@ -24,3 +24,22 @@ using std::clamp;
 * <cmath> -> Allows for math functions such as std::lround() & std::abs() to be used. Also key for converting values
 * <stdexcept> -> Utilizes std::invalid_argument to signal invalid inputs safely
 * using std::clamp; -> Lets user call clamp() without having to incorporate std:: each time, reducing redundancy
+
+
+
+### 2. Internal Constants and functions
+
+namespace {
+  constexpr int MIN_PIN = 0;
+  constexpr int MAX_PIN = 15;
+
+  inline double us_to_ms(int us) { 
+    return static_cast<double>(us) / 1000.0; 
+  }
+}
+
+
+* We begin by creating an anonymous namespace. The reason for using an anonymous namespace is that it better protects code from unwanted variable changes and to further protect constraints byt limiting access to code
+* In the anonymous namespace we create two constant expressions that express the minimum and maximum pin values that any hardware of the thruster can be connected. The variables in regards to the constant expressions is classified as an integer preventing any characters or any irrational numbers to be used when defining any pins regarding the thruster code 
+- The values 0 and 15 for the maximum pin values were chosen as the PCA9685 board (the PWM driver) has 16 channels that are represented by 0-15
+
