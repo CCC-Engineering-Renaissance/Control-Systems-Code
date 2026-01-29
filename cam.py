@@ -72,6 +72,6 @@ while True:
         _, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
         sock.sendto(buffer.tobytes(), target5)
 
-elapsed = time.time() - start
-if elapsed < frame_time:
-    time.sleep(frame_time - elapsed)
+    elapsed = time.time() - start
+    if elapsed < frame_time:
+        time.sleep(frame_time - elapsed)
