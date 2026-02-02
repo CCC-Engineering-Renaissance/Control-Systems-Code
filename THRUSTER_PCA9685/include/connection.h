@@ -29,7 +29,7 @@ extern POVState state;
 void server(unsigned short port = 12345);
 
 // Return true if a packet was recently received 
-bool isFresh(int maxAgeMs = 250);
+bool is_Fresh(int Max_Age_ms = 250);
 
 // Thread-safe insight of controller state
 POVState get_State();
