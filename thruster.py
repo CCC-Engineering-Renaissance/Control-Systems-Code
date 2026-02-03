@@ -111,8 +111,8 @@ class XboxController(object):
                 #   event.code="BTN_SOUTH" -> attr="A", mul=1
                 setattr(self, attr, event.state * mul)
 
-SERVER_IP = ''
-SERVER_PORT = 
+SERVER_IP = "127.0.0.1"
+SERVER_PORT = 5005
 
             
 joyROV = XboxController(devices.gamepads[0])

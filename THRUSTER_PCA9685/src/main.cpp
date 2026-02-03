@@ -17,7 +17,8 @@
 using namespace std;
 
 int main() {
-  int PORT = 12345;
+  const int PORT = 5005;
+  const int BUF_SIZE = 2048;
 
   int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
   if (sockfd < 0) {
@@ -27,5 +28,26 @@ int main() {
   sockaddr_in addr{};
   addr.sin_family = AF_INET;
   addr.sin_port = htons(PORT);
-  inet_pton(AF_INET, "192.168.8.161", &addr.sin_addr);
+    if (bind(sockfd, (sockaddr*)&addr, sizeof(addr)) < 0) {
+        perror("bind");
+        close(sockfd);
+        return 1;
+    }
+
+    std::cout << "Listening on UDP port " << PORT << "...\n";
+
+    while (true) {
+        char buf[BUF_SIZE];
+        sockaddr_in from{};
+        socklen_t from_len = sizeof(from);
+
+        ssize_t n = recvfrom(sockfd, buf, BUF_SIZE - 1, 0, (sockaddr*)&from, &from_len);
+        if (n < 0) { perror("recvfrom"); continue; }
+
+        buf[n] = '\0'; // make it a C-string
+        std::cout << "Received: " << buf << std::endl;
+    }
+
+    close(sockfd);
+    return 0;
 }
