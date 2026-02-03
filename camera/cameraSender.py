@@ -17,13 +17,18 @@ class cameraROV:
     
     #i will get back to this marking this as where i left off i need to add the while loop and more stuff...
     def stream(self):
+        while True: 
+            ret, frame = self.cap.read() #takes the photo
 
-        ret, frame = self.cap.read()
+            if ret:
+                self.out.write(frame) #sends photo to laptop
+            else:
+                print(f"Error: Camera {self.cameraID} disconnected.")
+                break
 
-        if not ret:
-            break
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
-
+    #only happens when loop breaks   
     self.cap.release()
+    self.out.release()
