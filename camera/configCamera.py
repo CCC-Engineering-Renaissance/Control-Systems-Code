@@ -14,6 +14,12 @@ contrast = 50
 saturation = 60
 
 
+#this is if you would like to change the gstreamer settings
+speedPreset = "ultrafast"
+tunePreset = "zerolatency"
+
+
+
 backend = cv2.CAP_V4L2 #tells you which driver is being used?
 guid = None #unique identifier for camera hardware
 bitRate = 1000000 #data rate of stream
