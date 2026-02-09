@@ -1,4 +1,4 @@
-#include "include/connection.h"
+#include "connection.h"
 
 #include <boost/asio.hpp> // UDP socket
 #include <chrono>
@@ -108,6 +108,6 @@ void sever(unsigned short port){
 
   }/*try*/ catch (std::exception& e) {
     // if this comes up, control loop should do isFressh()==false and stop
-           std::cerr << "Server error: " << e.what() << endl;
+           std::cerr << "Server error: " << e.what() << std::endl;
   } 
 }// void server()
