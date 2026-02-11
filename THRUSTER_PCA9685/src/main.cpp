@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // main.cpp
 // - UDP receiver with timeout (SO_RCVTIMEO)
 // - Parses Python message (13 fields)
@@ -17,6 +18,110 @@
 // - Allocation matrix A to match your mechanical layout
 // - Axis mixing signs and scaling in desired vector
 
+=======
+##include "Constants.h"
+#include "I2CPeripheral.h"
+#include "PCA9685.h"
+#include "Thruster.h"
+#include "connection.h"
+#include <Eigen/Dense>
+#include <Eigen/QR>
+#include <arpa/inet.h>
+#include <chrono>
+#include <cmath>
+#include <iostream>
+#include <string>
+#include <sys/socket.h>
+#include <thread>
+#include <unistd.h>
+#include <vector>
+
+using namespace std;
+
+int main() {
+  const int PORT = 5005;
+  //const int BUF_SIZE = 2048;
+
+  // Start UDP receiver in background
+  thread net([&] { server(PORT); });
+
+
+
+/*
+  int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (sockfd < 0) {
+    perror("socket");
+    return 1;
+  }
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(PORT);
+    if (bind(sockfd, (sockaddr*)&addr, sizeof(addr)) < 0) {
+        perror("bind");
+        close(sockfd);
+        return 1;
+    }
+*/
+    cout << "Listening on UDP port using Boost.Asio " << PORT << "..." << endl;
+
+    while (true) {
+  
+      if (!is_Fresh(250)) {
+  
+      cout << "STALE (recevied no packets)\r";
+      cout.flush();
+
+      }else {
+        
+        POVState s = get_State();
+
+        cout
+        << "fwd=" << s.forward
+        << " str=" << s.strafe
+        << " vert=" << s.vertical
+        << " yaw=" << s.yaw
+        << " pitch=" << s.pitch
+        << " roll=" << s.roll
+        << " clawR=" << s.clawRotate
+        << " clawO=" << s.clawOpen
+        << " clawP=" << s.clawPitch
+        << " claw1=" << s.claw1Open
+        << " pAng=" << s.pitchAngle
+        << " yAng=" << s.yawAngle
+        << " als=" << s.als
+        << "        \r";
+        
+        cout.flush();
+
+      this_thread::sleep_for(chrono::milliseconds(50));
+
+    }
+    
+    net.join();
+    return 0;
+
+  }
+
+
+/*
+        char buf[BUF_SIZE];
+        sockaddr_in from{};
+        socklen_t from_len = sizeof(from);
+
+        ssize_t n = recvfrom(sockfd, buf, BUF_SIZE - 1, 0, (sockaddr*)&from, &from_len);
+        if (n < 0) { perror("recvfrom"); continue; }
+
+        buf[n] = '\0'; // make it a C-string
+        std::cout << "Received: " << buf << std::endl;
+    }
+
+    close(sockfd);
+    return 0;
+}
+
+
+/*
+>>>>>>> ff67be4c (added connection code in main)
 #include "Constants.h"
 #include "I2CPeripheral.h"
 #include "PCA9685.h"
@@ -262,4 +367,8 @@ int main() {
   close(sockfd);
   return 0;
 }
+<<<<<<< HEAD
 
+=======
+*/
+>>>>>>> ff67be4c (added connection code in main)
