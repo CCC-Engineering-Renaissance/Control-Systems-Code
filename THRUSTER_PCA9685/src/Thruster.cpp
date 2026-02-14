@@ -1,112 +1,229 @@
-#include "Thruster.h"
-#include "PiPCA9685/PCA9685.h"
-#include <algorithm>
-#include <cmath>
-#include <stdexcept>
-using std::clamp;    //Just because I can... (see result on line 22)
+#include "Thruster.h"              // Brings in the Thruster class declaration (must match this .cpp)
+
+#include <algorithm>               // std::clamp, std::max, std::swap (clamping + small utilities)
+#include <cmath>                   // std::lround (round double -> nearest integer)
+#include <stdexcept>               // std::invalid_argument (exceptions for invalid pin)
+
+#include "PiPCA9685/PCA9685.h"     // Full definition of PiPCA9685::PCA9685 so we can call its methods
+
+
+// Section 1: File-local helpers (private to this .cpp)
 
 namespace {
-  constexpr int MIN_PIN = 0;
-  constexpr int MAX_PIN = 15;
+  // These constants are hardware facts for PCA9685 channel indices.
+  // They are file-local so they do not pollute the public API.
+  constexpr int kMinPin = 0;       // First PCA9685 PWM channel
+  constexpr int kMaxPin = 15;      // Last PCA9685 PWM channel (16 channels total: 0..15)
 
-  constexpr int PERIOD_US = 10000; //100Hz frequency this will help lower latency
-  constexpr double PCA_BITS = 4096.0; //12 bit resolution
-  constexpr double MAX_SAFE_POWER = 0.8; //caps maximum power to 80%, this may even not be needed but can alwasy change to 1.0 if it works fine
-                                         
-  //  Driver Code is written as if PWM values are in ms so we need to convert the values as we write PWM
-  inline double us_to_ms(int us) { 
-    return static_cast<double>(us) / 1000.0; 
-    }
-} 
-//constructors 
-Thruster::Thruster()
-  : pin(0), rest(1500), offset(400), pwm(1500), power(0.0), min_us(1100), max_us(1900), driver(nullptr) {}
+  // Unit conversion helper:
+  // Thruster uses microseconds (us). Driver helper set_pwm_ms uses milliseconds (ms).
+  inline double us_to_ms(int us) {
+    // Cast to double first so division is floating-point (1500/1000 -> 1.5, not 1).
+    return static_cast<double>(us) / 1000.0;
+  }
+} // namespace
 
-Thruster::Thruster(int p, PiPCA9685::PCA9685* driver_ptr)
-  : pin(p), rest(1500), offset(400), pwm(1500), power(0.0), min_us(1100), max_us(1900), driver(driver_ptr) {}
 
-Thruster::Thruster(int p, PiPCA9685::PCA9685* driver_ptr, int r, int o)
-  : pin(p), rest(r), offset(o), pwm(r), power(0.0), min_us(1100), max_us(1900), driver(driver_ptr) {}
+// Section 2: Helper checks and clamps (Thruster private methods)
 
-    // Helper checks and clamps
-bool Thruster::isCorrectPin(int p) const{
-  return (p >= MIN_PIN && p <= MAX_PIN);
+bool Thruster::isCorrectPin(int p) const {
+  // Returns true only if p is within PCA9685 channel bounds.
+  // Why: the driver does not bounds-check channels; invalid channel writes wrong registers.
+  return (p >= kMinPin && p <= kMaxPin);
 }
 
 double Thruster::clampPower(double p) const {
-  //80% power cap here 
-  return clamp(p, -MAX_SAFE_POWER, MAX_SAFE_POWER);
+  // Forces normalized power into [-1, +1].
+  // Why: control code/joystick inputs can overshoot; we never want to command beyond full-scale.
+  return std::clamp(p, -1.0, 1.0);
 }
 
 int Thruster::clampPWM(int pwm_us) const {
-  //clamp within absolute safety limits
-  return clamp(pwm_us, min_us, max_us);
+  // Two-layer clamp:
+  // 1) absolute safety limits: [min_us, max_us]
+  // 2) control authority around rest: [rest-offset, rest+offset]
+  //
+  // This ensures hardware safety AND keeps the configured "max deviation" respected.
+
+  // Clamp to absolute safety first.
+  int clamped = std::clamp(pwm_us, min_us, max_us);
+
+  // Compute the symmetric window around neutral.
+  const int sym_min = rest - offset;
+  const int sym_max = rest + offset;
+
+  // Clamp again to the window around rest.
+  clamped = std::clamp(clamped, sym_min, sym_max);
+
+  // Return final safe PWM in microseconds.
+  return clamped;
 }
 
-// the command functions
-void Thruster::setPower(double power_val, PiPCA9685::PCA9685 &external_driver) {
-  //apply 80% cap
-  double capped = clampPower(power_val);
-  this->power = capped;
 
-  //map to microseconds (rest + power * offset)
-  int target_us = rest + static_cast<int>(std::round(capped * offset));
-  this->pwm = clampPWM(target_us);
+// Section 3: Constructors (initialize safe defaults)
 
-  //convert to 100Hz by this formula: (target time / 10000us) * 4096 bits
-  double pulseRatio = static_cast<double>(this->pwm) / PERIOD_US;
-  uint16_t offTick = static_cast<uint16_t>(std::round(pulseRatio * PCA_BITS));
-  
-  if (isCorrectPin(pin)) {
-    external_driver.set_pwm(pin, 0, offTick);
+Thruster::Thruster()
+  : pin(-1),          // -1 means "invalid/unassigned" until you construct with a real pin
+    rest(1500),       // typical ESC neutral pulse width (us)
+    offset(400),      // typical max deviation around neutral (us)
+    pwm(1500),        // start at neutral so state is safe by default
+    power(0.0f),      // normalized power at neutral
+    min_us(1100),     // conservative ESC low safety limit (adjust per ESC/thruster)
+    max_us(1900) {    // conservative ESC high safety limit
+  // No hardware action here; constructors should not talk to the driver.
+}
+
+Thruster::Thruster(int pin_in)
+  : pin(pin_in),
+    rest(1500),
+    offset(400),
+    pwm(1500),
+    power(0.0f),
+    min_us(1100),
+    max_us(1900) {
+  // Fail fast if the channel is invalid.
+  if (!isCorrectPin(pin)) {
+    throw std::invalid_argument("Thruster pin must be in [0,15]");
+  }
+}
+
+Thruster::Thruster(int pin_in, int rest_in)
+  : pin(pin_in),
+    rest(rest_in),
+    offset(400),
+    pwm(rest_in),     // start at the configured neutral
+    power(0.0f),
+    min_us(1100),
+    max_us(1900) {
+  if (!isCorrectPin(pin)) {
+    throw std::invalid_argument("Thruster pin must be in [0,15]");
+  }
+  // Ensure pwm respects limits after custom rest is applied.
+  pwm = clampPWM(pwm);
+}
+
+Thruster::Thruster(int pin_in, int rest_in, int offset_in)
+  : pin(pin_in),
+    rest(rest_in),
+    offset(std::max(0, offset_in)), // prevent negative offset (nonsensical)
+    pwm(rest_in),
+    power(0.0f),
+    min_us(1100),
+    max_us(1900) {
+  if (!isCorrectPin(pin)) {
+    throw std::invalid_argument("Thruster pin must be in [0,15]");
+  }
+  pwm = clampPWM(pwm);
+}
+
+
+// Section 4: Commands (these actually talk to hardware via the driver reference)
+
+void Thruster::setPWM(int pwm_us, PiPCA9685::PCA9685 &driver) {
+  // Guard: channel must be valid before commanding hardware.
+  if (!isCorrectPin(pin)) {
+    throw std::invalid_argument("Thruster pin invalid (must be 0..15)");
   }
 
+  // Clamp and store the hardware-space command (microseconds).
+  pwm = clampPWM(pwm_us);
+
+  // Keep cached power consistent with pwm (useful for telemetry/simulation/UI).
+  if (offset > 0) {
+    // Convert pwm deviation back into normalized power.
+    const double p = static_cast<double>(pwm - rest) / static_cast<double>(offset);
+    power = static_cast<float>(clampPower(p));
+  } else {
+    // If offset is 0, power has no meaning (avoid division by zero).
+    power = 0.0f;
+  }
+
+  // Send to PCA9685:
+  // set_pwm_ms expects milliseconds; driver converts ms -> tick counts using its configured frequency.
+  driver.set_pwm_ms(pin, us_to_ms(pwm));
 }
 
+void Thruster::setPower(double pwr, PiPCA9685::PCA9685 &driver) {
+  // Guard: channel must be valid before commanding hardware.
+  if (!isCorrectPin(pin)) {
+    throw std::invalid_argument("Thruster pin invalid (must be 0..15)");
+  }
 
+  // Clamp requested control-space command.
+  const double p = clampPower(pwr);
 
-void Thruster::setPWM(int pwm_us, PiPCA9685::PCA9685 &external_driver) {
-  this->pwm = clampPWM(pwm_us);
-  
-  double pulseRatio = static_cast<double>(this->pwm) / PERIOD_US;
-  uint16_t offTick = static_cast<uint16_t>(std::round(pulseRatio * PCA_BITS));
-  
-  if (isCorrectPin(pin)) {
-    external_driver.set_pwm(pin, 0, offTick);
+  // Map normalized power -> microseconds around neutral.
+  // Example: rest=1500, offset=400
+  // power=+1.0 => 1900 us
+  // power= 0.0 => 1500 us
+  // power=-1.0 => 1100 us
+  const double target_us = static_cast<double>(rest) + p * static_cast<double>(offset);
+
+  // Route through setPWM so all safety clamping and cached-state updates happen in one place.
+  setPWM(static_cast<int>(std::lround(target_us)), driver);
+}
+
+void Thruster::stop(PiPCA9685::PCA9685 &driver) {
+  // "Stop" means go to neutral (rest pulse).
+  // This is safer than assuming "0 power" always maps to exactly rest if the mapping ever changes.
+  setPWM(rest, driver);
+}
+
+// Section 5: Configuration setters (update internal config; do NOT touch hardware)
+
+void Thruster::setRest(int rest_us) {
+  // Update neutral pulse width.
+  rest = rest_us;
+
+  // Re-clamp current pwm to new constraints.
+  pwm = clampPWM(pwm);
+
+  // Update cached power to stay consistent.
+  if (offset > 0) {
+    const double p = static_cast<double>(pwm - rest) / static_cast<double>(offset);
+    power = static_cast<float>(clampPower(p));
+  } else {
+    power = 0.0f;
   }
 }
 
-// stop() acts as a safety kill-switch. 
-// We put it here to ensure the thruster returns to the 1500us 'Neutral' 
-// state immediately, effectively cutting motor thrust to zero.
-void Thruster::stop(PiPCA9685::PCA9685 &external_driver) {
-  setPower(0.0, external_driver);
+void Thruster::setOffset(int offset_us) {
+  // Offset must be non-negative.
+  offset = std::max(0, offset_us);
+
+  pwm = clampPWM(pwm);
+
+  if (offset > 0) {
+    const double p = static_cast<double>(pwm - rest) / static_cast<double>(offset);
+    power = static_cast<float>(clampPower(p));
+  } else {
+    power = 0.0f;
+  }
 }
 
-//setters and getters
-void Thruster::setRest(int r) { rest = r; }
-void Thruster::setOffset(int o) { offset = o; }
-void Thruster::setLimits(int min, int max) { min_us = min; max_us = max; }
+void Thruster::setLimits(int min_in, int max_in) {
+  // Ensure min <= max even if caller passes them reversed.
+  if (min_in > max_in) {
+    std::swap(min_in, max_in);
+  }
+
+  min_us = min_in;
+  max_us = max_in;
+
+  pwm = clampPWM(pwm);
+
+  if (offset > 0) {
+    const double p = static_cast<double>(pwm - rest) / static_cast<double>(offset);
+    power = static_cast<float>(clampPower(p));
+  } else {
+    power = 0.0f;
+  }
+}
+
+// Section 6: Getters (read-only accessors)
 
 int Thruster::getPin() const { return pin; }
 int Thruster::getRest() const { return rest; }
 int Thruster::getOffset() const { return offset; }
 int Thruster::getPWM() const { return pwm; }
-double Thruster::getPower() const { return power; }
-
-
-//works with stored pointer
-void Thruster::setPower(double power_val) {
-    if (this->driver != nullptr) {
-        // This calls the version above and passes the stored driver!
-        setPower(power_val, *(this->driver));
-    }
-}
-
-// Internal version: Allows for a quick emergency stop without 
-// needing to find the driver reference in the main loop
-void Thruster::stop() {
-    if (this->driver != nullptr) {
-        stop(*(this->driver));
-    }
-}
+double Thruster::getPower() const { return static_cast<double>(power); }

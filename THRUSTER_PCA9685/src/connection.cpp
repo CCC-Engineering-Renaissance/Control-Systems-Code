@@ -11,58 +11,65 @@ using boost::asio::ip::udp;
 
 POVState state{};
 
-static std::mutex state_Mutex;
+// Mutex protects both "state" and "last_packet" so reads/writes can't interleave.
+static std::mutex state_mutex;
 
-// isFresh() returns false until first packet because last_Packet starts as "never"
-
-static std::chrono::steady_clock::time_point last_Packet = 
-  std::chrono::steady_clock::time_point::min();
+// Time of last successfully parsed packet.
+// Initialized to "min" so is_Fresh() returns false until the first valid packet arrives.
+static std::chrono::steady_clock::time_point last_packet = std::chrono::steady_clock::time_point::min();
 
 
 //         READ API
 
-POVState get_State(){
-  //allows for a stable snapshot even while a server thread informs new packets
-  
-  std::lock_guard<std::mutex> lock(state_Mutex);
+
+POVState get_State() {
+  // lock_guard locks the mutex now, unlocks automatically when function returns.
+  // This makes the returned state a consistent snapshot.
+  std::lock_guard<std::mutex> lock(state_mutex);
   return state;
 }
 
-bool is_Fresh(int Max_Age_ms){
-  // If packets stop being received (crash via wifi or python), the control code can stop movements instead of holding them indefinitely 
+bool is_Fresh(int max_age_ms) {
+  // main calls this to decide whether to keep driving thrusters or stop them.
+  std::lock_guard<std::mutex> lock(state_mutex);
 
-  std::lock_guard<std::mutex> lock(state_Mutex);
-
-  if (last_Packet == std::chrono::steady_clock::time_point::min()){
+  // No packet ever received => stale by definition.
+  if (last_packet == std::chrono::steady_clock::time_point::min()) {
     return false;
-  }   
+  }
 
-  auto age = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - last_Packet).count();
+  // Compute age of the last packet in milliseconds.
+  auto age_ms =
+    std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::steady_clock::now() - last_packet
+    ).count();
 
-  return age <= Max_Age_ms;
-
+  // Fresh if it is newer than the allowed max age.
+  return age_ms <= max_age_ms;
 }
 
 //         WRITE API
+
 
 void set_State(const POVState& s){
 
   // setting up a place to update state amd timestamp within the same lock
 
-  std::lock_guard<std::mutex> lock(state_Mutex);
+  std::lock_guard<std::mutex> lock(state_mutex);
   state = s;
-  last_Packet = std::chrono::steady_clock::now();
+  last_packet = std::chrono::steady_clock::now();
 
 }
 
 //        UDP RECEIVER
 
-void sever(unsigned short port){
+
+void server(unsigned short port){
 
   try {
 
     boost::asio::io_context io_context;
-    udp::socket socket(io_context, udp::endpoint(udp::v4(), port));
+    udp::socket sock(io_context, udp::endpoint(udp::v4(), port));
      
     for(;;) {
 
@@ -72,7 +79,7 @@ void sever(unsigned short port){
       boost::system::error_code error;
 
       //receive one UDP datagram (blocking)
-    std::size_t length = socket.receive_from(boost::asio::buffer(data), remote_endpoint, 0, error);
+    std::size_t length = sock.receive_from(boost::asio::buffer(data), remote_endpoint, 0, error);
 
   //   Ignore oversized error messages but throw on any other errors 
       if(error && error != boost::asio::error::message_size) {
@@ -111,3 +118,4 @@ void sever(unsigned short port){
            std::cerr << "Server error: " << e.what() << std::endl;
   } 
 }// void server()
+

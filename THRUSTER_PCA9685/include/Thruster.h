@@ -14,36 +14,31 @@ private:
 private:
   int pin;
   int rest;    // neutral pulse in microseconds (usually 1500 us)
-  int offset;  // maximum deviatioin from the rest value positive/negative
+  int offset;  // maximum deviation from the rest value positive/negative
                // direction (usually 400 us)
-  int pwm;     // the last commanded pwm in micrseconds
-  double power; // last commanded power [-1, 1]
-                
-  
-  int min_us; // the absolute safety limit (low)
-  int max_us; // the absolute safety limit (high)
-              
+  int pwm;     // the last commanded pwm in microseconds
+  float power; // last commanded power [-1, 1]
 
-  PiPCA9685::PCA9685* driver;   //the link to the PCA9685 hardware board
-
+  int min_us;  // the absolute safety limit (low)
+  int max_us;  // the absolute safety limit (high)
 
 public:
   // Constructors
   Thruster();
-  explicit Thruster(int pin, PiPCA9685::PCA9685* driver_ptr);
-  Thruster(int pin, PiPCA9685::PCA9685* driver_ptr, int rest, int offset);
+  explicit Thruster(int pin);
+  Thruster(int pin, int rest);
+  Thruster(int pin, int rest, int offset);
 
   // Sets
-  void setPWM(int pwm_us, PiPCA9685::PCA9685 &external_driver);
-  void setPower(double power_val, PiPCA9685::PCA9685 &external_driver);
-  void stop(PiPCA9685::PCA9685 &external_driver);
+  void setPWM(int pwm_us, PiPCA9685::PCA9685 &driver);
+  void setPower(double power, PiPCA9685::PCA9685 &driver);
+  void stop(PiPCA9685::PCA9685 &driver);
 
   void setRest(int rest_us);
   void setOffset(int offset_us);
   void setLimits(int min_us, int max_us);
 
   // Gets
-  // testing if this works
   int getPin() const;
   int getRest() const;
   int getOffset() const;
