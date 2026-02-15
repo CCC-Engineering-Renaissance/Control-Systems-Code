@@ -1,11 +1,11 @@
 import threading
 import time
-import sys
+import sys #used to handle system level operations
 import configCamera as config 
 from cameraSender import cameraROV
 #for future we may need to do peripherals.py not sure yet though...
 def main():
-
+    #loops through the cameras dictionary
     for cameraNames, info in config.cameras.items():
 
         #initializes the camera object
@@ -30,9 +30,9 @@ if __name__ == "__main__":
         while True:
 
             time.sleep(1)
-
+    #catches when you press Ctrl+C
     except KeyboardInterrupt:
 
         print("\nStopping all camera streams...")
-
+        #exits the program
         sys.exit()
