@@ -184,7 +184,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             str(rjy * 0.66 * scale * 2) + " " +
             str((joyROV.RightBumper - joyROV.LeftBumper) * scale) + " " +
             str(round((claw_rjy ** 3), 1) * 0.4) + " " +
-            str(int(joyClaw.B) - int(joyClaw.A) * 1.4) + " " +
+            str((int(joyClaw.B) - int(joyClaw.A)) * 1.4) + " " +
             str(round((claw_rjx ** 3), 1) * 0.15) + " " +
             str((claw_ljy ** 3) * -0.25) + " " +
             str(pitchAngle) + " " +
