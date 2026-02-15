@@ -12,14 +12,14 @@ class cameraROV:
         self.initSuccess = False
         self.cameraID = cameraID #tells you the camera number
         self.port = port # what port the respective camera gets sent to 
-        self.cap = cv2.VideoCapture(self.cameraID)
+        self.cap = cv2.VideoCapture(self.cameraID) #connects to the physical USB camera
         
 
         ret, frame = self.cap.read()
-        if self.cap.isOpened() and ret:
+        if self.cap.isOpened() and ret: #checks if camera is connected/sending data
             print(f"Camera {self.cameraID} is open and sending data")
-            for prop, value in config.propertyMap.items():
-                self.cap.set(prop, value)
+            for prop, value in config.propertyMap.items(): #loops through resolution, etc.
+                self.cap.set(prop, value) #applies setting to hardware
            
             #this is the gstreamer pipeline string that converts the frames from the if statement into a stream in the network
             #if video is blurry/pixelated increase bitrate (you can do this in configCamera.py)
@@ -51,14 +51,14 @@ class cameraROV:
         #basically acts like a stop motion film but that is how we are able to send the camera data to the computer 
     def stream(self):
         try: 
-            if not self.initSuccess:
+            if not self.initSuccess: #if setup failed, don't try to stream
                 raise Exception("Initialization was False")
 
             while True: 
                 ret, frame = self.cap.read() #takes the photo
 
                 if ret:
-                    self.out.write(frame)
+                    self.out.write(frame) #sends the frame through GStreamer to laptop
                 else:
                     print(f"Error: Camera {self.cameraID} disconnected.")
                     break
