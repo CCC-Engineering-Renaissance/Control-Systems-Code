@@ -1,7 +1,7 @@
 import cv2
 
 #for video stream
-framesPerSecond = 30 #how much frames we want displayed to surface side
+framesPerSecond = 30 #how much frames we want displayed to surface side, may need to be lowered
 frameWidth = 640
 frameHeight = 480
 videoFormat =cv2.VideoWriter_fourcc(*'MJPG') #the four characters that define what file type the camera uses for formatting
@@ -20,7 +20,7 @@ tunePreset = "zerolatency"
 
 
 
-backend = cv2.CAP_V4L2 #tells you which driver is being used?
+backend = cv2.CAP_V4L2 #uses standard linux driver for video
 guid = None #unique identifier for camera hardware
 bitRate = 1000000 #data rate of stream
 timeOutInterval = 5000 #in milliseconds
