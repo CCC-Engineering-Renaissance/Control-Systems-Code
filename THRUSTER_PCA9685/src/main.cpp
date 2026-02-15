@@ -110,9 +110,8 @@ int main() {
     float strafeCommand   = clamp1(s.strafe);
     float yawCommand      = clamp1(s.yaw);
     float verticalCommand = clamp1(s.vertical);
-
-    float pitchCommand = 0.0f;
-    float rollCommand = 0.0f;
+    float pitchCommand = clamp1(s.pitch);
+    float rollCommand = clamp1(s.roll);
 
     // Mix forward/strafe/yaw into 4 horizontal thrusters
 
