@@ -30,7 +30,7 @@ class cameraROV:
                 f"rtph264pay config-interval=1 pt=96 ! "
                 f"queue ! "
                 f"udpsink host={config.laptopIPAddress} port={self.port}"
-            )
+            ) #'x264enc' encoding may need to be changed
         
             #tells the computer how to prepare for the data sent from streamConvert
             self.out = cv2.VideoWriter(streamConvert, cv2.CAP_GSTREAMER, 0, 30, (config.frameWidth, config.frameHeight))
