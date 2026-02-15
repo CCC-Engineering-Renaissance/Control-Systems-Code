@@ -1,4 +1,4 @@
-#include "PiPCA9685/PCA9685.h"
+#include "PCA9685.h"
 #include <unistd.h>
 #include <cmath>
 #include "Constants.h"
