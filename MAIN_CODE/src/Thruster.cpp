@@ -4,7 +4,7 @@
 #include <cmath>                   // std::lround (round double -> nearest integer)
 #include <stdexcept>               // std::invalid_argument (exceptions for invalid pin)
 
-#include "PCA9685.h"     // Full definition of PiPCA9685::PCA9685 so we can call its methods
+#include "PiPCA9685/PCA9685.h"     // Full definition of PiPCA9685::PCA9685 so we can call its methods
 
 
 // Section 1: File-local helpers (private to this .cpp)

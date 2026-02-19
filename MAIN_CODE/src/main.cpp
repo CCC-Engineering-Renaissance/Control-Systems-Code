@@ -1,4 +1,4 @@
-#include "Constants.h"
+##include "Constants.h"
 #include "I2CPeripheral.h"
 #include "PCA9685.h"
 #include "Thruster.h"
@@ -14,9 +14,6 @@
 #include <thread>
 #include <unistd.h>
 #include <vector>
-#include <algorithm>
-
-constexpr int PORT = 5005;
 
 using namespace std;
 static float clamp1(float x) {
@@ -35,6 +32,7 @@ static void normalize4(float &a, float &b, float &c, float &d) {
 }
 
 int main() {
+
   // Run the UDP receiver in the background.
   // server(PORT) blocks forever, so it must run in a separate thread.
   std::thread net([&] { server(PORT); });
@@ -110,8 +108,6 @@ int main() {
     float strafeCommand   = clamp1(s.strafe);
     float yawCommand      = clamp1(s.yaw);
     float verticalCommand = clamp1(s.vertical);
-    float pitchCommand = clamp1(s.pitch);
-    float rollCommand = clamp1(s.roll);
 
     // Mix forward/strafe/yaw into 4 horizontal thrusters
 
