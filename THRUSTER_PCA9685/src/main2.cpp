@@ -30,7 +30,7 @@ static inline float clamp1(float x) {
   if (x < -1.0f) return -1.0f;
   return x;
 }
-
+constexpr unsigned shor PORT = 5005
 int main() {
   // Start UDP server in background (your connection.cpp must provide this).
   std::thread net([&] { server(PORT); });
