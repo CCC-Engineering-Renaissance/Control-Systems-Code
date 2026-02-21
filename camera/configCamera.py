@@ -3,7 +3,7 @@ import cv2
 
 
 #for video stream
-framesPerSecond = 30 #how much frames we want displayed to surface side
+framesPerSecond = 30 #how much frames we want displayed to surface side, may need to be lowered
 frameWidth = 640
 frameHeight = 480
 videoFormat = cv2.VideoWriter_fourcc(*'MJPG') #the four characters that define what file type the camera uses for formatting
@@ -28,9 +28,13 @@ encoder = "v4l2h264enc extra-controls=\"controls,video_bitrate=2000000,h264_i_fr
 # Change from cv2.CAP_V4L2 to cv2.CAP_DSHOW for Windows testing
 #backend = cv2.CAP_DSHOW use this for testing on windows
 
+<<<<<<< HEAD
 backend = cv2.CAP_V4L2 #tells you which driver is being used?
 
 
+=======
+backend = cv2.CAP_V4L2 #uses standard linux driver for video
+>>>>>>> Safe_Space
 guid = None #unique identifier for camera hardware
 bitRate = 2000000 #data rate of stream, this is about 2Mbps
 timeOutInterval = 5000 #in milliseconds

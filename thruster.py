@@ -2,6 +2,7 @@ import socket
 import os
 import math
 from inputs import get_gamepad, devices
+from inputs import devices
 import threading
 import time
 
@@ -114,6 +115,8 @@ class XboxController(object):
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = 5005
 
+if len(devices.gamepads) < 2:
+    raise RuntimeError(f"Need 2 gamepads (ROV + Claw). Found {len(devices.gamepads)}")
             
 joyROV = XboxController(devices.gamepads[0])
 joyClaw = XboxController(devices.gamepads[1])
@@ -122,6 +125,8 @@ pushed = False
 pitchAngle = 0
 yawAngle = 0
 als = False
+def clamp(v, lo=-1.0, hi=1.0):
+    return lo if v < lo else hi if v > hi else v
 
 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
     sock.settimeout(2.0)
@@ -168,6 +173,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         claw_rjx = joyClaw.axis("RightJoystickX", dz=0.05, factor=0.2)
         claw_ljy = joyClaw.axis("LeftJoystickY",  dz=0.05, factor=0.2)
 
+        claw_lt = joyClaw.axis("LeftTrigger", dz=0.02, factor=0.2)
+        claw_rt = joyClaw.axis("RightTrigger", dz=0.02, factor=0.2)
+
         MESSAGE = (
             str(ljy * scale * 1.5) + " " +
             str(ljx * scale * -1) + " " +
@@ -176,7 +184,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             str(rjy * 0.66 * scale * 2) + " " +
             str((joyROV.RightBumper - joyROV.LeftBumper) * scale) + " " +
             str(round((claw_rjy ** 3), 1) * 0.4) + " " +
-            str(int(joyClaw.B) - int(joyClaw.A) * 1.4) + " " +
+            str((int(joyClaw.B) - int(joyClaw.A)) * 1.4) + " " +
             str(round((claw_rjx ** 3), 1) * 0.15) + " " +
             str((claw_ljy ** 3) * -0.25) + " " +
             str(pitchAngle) + " " +
@@ -202,6 +210,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.sendto(MESSAGE.encode(), (SERVER_IP, SERVER_PORT))
 
         time.sleep(0.01)
+
 
 
 

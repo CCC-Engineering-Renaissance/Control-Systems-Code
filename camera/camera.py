@@ -1,28 +1,28 @@
 import threading
 import time
-import sys
+import sys #used to handle system level operations
 import configCamera as config 
 from cameraSender import cameraROV
 #for future we may need to do peripherals.py not sure yet though...
 def main():
-
+    workers = []
+    threads = []
+    #loops through the cameras dictionary
     for cameraNames, info in config.cameras.items():
+        worker = cameraROV(info["id"], info["port"])
+        t = threading.Thread(target=worker.stream, daemon=True)
+        t.start()
 
-        #initializes the camera object
+        workers.append(worker)
+        threads.append(t)
 
-        cameraWorker = cameraROV(info["id"], info["port"])
+        print(f"Started {cameraName}: ID {info['id']} on Port {info['port']}")
 
-        #starts the stream in its own thread 
-
-        #daemon=True refers to the thread closing automatically once main script stops
-
-        threading.Thread(target=cameraWorker.stream, daemon=True).start()
-
-        print(f"Started {cameraNames}: ID {info['id']} on Port {info['port']}")
+    return workers, threads
 
 if __name__ == "__main__":
 
-    main() #starts the camera set ups from cameraROV first
+    workers, threads = main() #starts the camera set ups from cameraROV first
     try:
 
         print("All cameras have been initialized. Press ctrl + c to stop")
@@ -30,9 +30,9 @@ if __name__ == "__main__":
         while True:
 
             time.sleep(1)
-
+    #catches when you press Ctrl+C
     except KeyboardInterrupt:
 
         print("\nStopping all camera streams...")
-
+        #exits the program
         sys.exit()

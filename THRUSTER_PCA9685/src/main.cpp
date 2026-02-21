@@ -2,8 +2,9 @@
 #include "I2CPeripheral.h"
 #include "PCA9685.h"
 #include "Thruster.h"
-#include <Eigen/Dense>
-#include <Eigen/QR>
+#include "connection.h"
+//#include <Eigen/Dense>
+//#include <Eigen/QR>
 #include <arpa/inet.h>
 #include <chrono>
 #include <cmath>
@@ -13,41 +14,153 @@
 #include <thread>
 #include <unistd.h>
 #include <vector>
+#include <algorithm>
+
+constexpr int PORT = 5005;
 
 using namespace std;
+static float clamp1(float x) {
+  if (x >  1.0f) return  1.0f;
+  if (x < -1.0f) return -1.0f;
+  return x;
+}
+
+// If any of the 4 values exceed magnitude 1, scale all 4 down proportionally.
+// This preserves direction (mix ratio) while preventing saturation/clipping.
+static void normalize4(float &a, float &b, float &c, float &d) {
+  float m = std::max({std::abs(a), std::abs(b), std::abs(c), std::abs(d)});
+  if (m > 1.0f) {
+    a /= m; b /= m; c /= m; d /= m;
+  }
+}
 
 int main() {
-  const int PORT = 5005;
-  const int BUF_SIZE = 2048;
+  // Run the UDP receiver in the background.
+  // server(PORT) blocks forever, so it must run in a separate thread.
+  std::thread net([&] { server(PORT); });
 
-  int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-  if (sockfd < 0) {
-    perror("socket");
-    return 1;
+  // Create the PCA9685 driver object:
+  // - "/dev/i2c-1" is the standard Raspberry Pi I2C bus
+  // - 0x40 is the default PCA9685 address (change if your board uses different address)
+  PiPCA9685::PCA9685 driver("/dev/i2c-1", 0x40);
+
+  // Set PWM frequency for ESCs.
+  // Most ESCs expect ~50 Hz for "servo PWM" style pulses.
+  driver.set_pwm_freq(50);
+
+  // PCA9685 has 16 channels: 0..15.
+  // Update these numbers to match acutal physical wiring.
+  constexpr int FRONT_LEFT_HORIZONTAL_CHANNEL  = 0;
+  constexpr int FRONT_RIGHT_HORIZONTAL_CHANNEL = 1;
+  constexpr int REAR_LEFT_HORIZONTAL_CHANNEL   = 2;
+  constexpr int REAR_RIGHT_HORIZONTAL_CHANNEL  = 3;
+  constexpr int LEFT_VERTICAL_CHANNEL          = 4;
+  constexpr int RIGHT_VERTICAL_CHANNEL         = 5;
+  constexpr int LEFT_VERTICAL_CHANNEL_2        = 6;
+  constexpr int RIGHT_VERTICAL_CHANNEL_2       = 7;
+
+  // Thruster(pin) sets default rest=1500us, offset=400us, min=1100us, max=1900us
+
+  Thruster frontLeftHorizontal(FRONT_LEFT_HORIZONTAL_CHANNEL);
+  Thruster frontRightHorizontal(FRONT_RIGHT_HORIZONTAL_CHANNEL);
+  Thruster rearLeftHorizontal(REAR_LEFT_HORIZONTAL_CHANNEL);
+  Thruster rearRightHorizontal(REAR_RIGHT_HORIZONTAL_CHANNEL);
+  Thruster leftVertical(LEFT_VERTICAL_CHANNEL);
+  Thruster rightVertical(RIGHT_VERTICAL_CHANNEL);
+  Thruster leftVertical2(LEFT_VERTICAL_CHANNEL_2);
+  Thruster rightVertical2(RIGHT_VERTICAL_CHANNEL_2);
+
+  cout << "Listening on UDP port " << PORT << "...\n";
+
+// Control loop
+
+
+  while (true) {
+
+   
+    // Safety stop: if packets are stale, stop everything
+
+    // is_Fresh(250) is true if we got a packet within last 250ms.
+    // If Python dies or WiFi drops, stop motors.
+    //
+    if (!is_Fresh(250)) {
+
+      frontLeftHorizontal.stop(driver);
+      frontRightHorizontal.stop(driver);
+      rearLeftHorizontal.stop(driver);
+      rearRightHorizontal.stop(driver);
+      leftVertical.stop(driver);
+      rightVertical.stop(driver);
+      leftVertical2.stop(driver);
+      rightVertical2.stop(driver);
+      
+      cout << "STALE: stop\r";
+      cout.flush();
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      continue;
+    }
+
+    // Read the latest decoded controller state (thread-safe snapshot)
+
+    POVState s = get_State();
+
+    // Pull out the motion commands and clamp them to [-1, 1]
+    float forwardCommand  = clamp1(s.forward);
+    float strafeCommand   = clamp1(s.strafe);
+    float yawCommand      = clamp1(s.yaw);
+    float verticalCommand = clamp1(s.vertical);
+    float pitchCommand = clamp1(s.pitch);
+    float rollCommand = clamp1(s.roll);
+
+    // Mix forward/strafe/yaw into 4 horizontal thrusters
+
+    float frontLeftPower  = forwardCommand + strafeCommand + yawCommand;
+    float frontRightPower = forwardCommand - strafeCommand - yawCommand;
+    float rearLeftPower   = forwardCommand - strafeCommand + yawCommand;
+    float rearRightPower  = forwardCommand + strafeCommand - yawCommand;
+
+    // Normalize if any exceed magnitude 1
+    normalize4(frontLeftPower, frontRightPower, rearLeftPower, rearRightPower);
+
+    // Send power to horizontal thrusters
+    frontLeftHorizontal.setPower(frontLeftPower, driver);
+    frontRightHorizontal.setPower(frontRightPower, driver);
+    rearLeftHorizontal.setPower(rearLeftPower, driver);
+    rearRightHorizontal.setPower(rearRightPower, driver);
+
+  float leftVerticalPower   = verticalCommand + pitchCommand + rollCommand;
+  float rightVerticalPower  = verticalCommand + pitchCommand - rollCommand;
+  float leftVertical2Power  = verticalCommand - pitchCommand + rollCommand;
+  float rightVertical2Power = verticalCommand - pitchCommand - rollCommand;
+
+  // Normalize 
+  normalize4(leftVerticalPower, rightVerticalPower, leftVertical2Power, rightVertical2Power);
+
+  // Send power to verical thrusters
+  leftVertical.setPower(leftVerticalPower, driver);
+  rightVertical.setPower(rightVerticalPower, driver);
+  leftVertical2.setPower(leftVertical2Power, driver);
+  rightVertical2.setPower(rightVertical2Power, driver);
+
+
+    // Debug print: show the incoming command values and final thruster outputs
+
+        
+    cout
+    << "up=" << verticalCommand
+    << " pitch=" << pitchCommand
+    << " roll=" << rollCommand
+    << " | LVert=" << leftVerticalPower
+    << " RVert=" << rightVerticalPower
+    << " LVert2=" << leftVertical2Power
+    << " RVert2=" << rightVertical2Power
+    << "     \r";
+    cout.flush();
+
+    this_thread::sleep_for(chrono::milliseconds(50));
   }
-  sockaddr_in addr{};
-  addr.sin_family = AF_INET;
-  addr.sin_port = htons(PORT);
-    if (bind(sockfd, (sockaddr*)&addr, sizeof(addr)) < 0) {
-        perror("bind");
-        close(sockfd);
-        return 1;
-    }
 
-    std::cout << "Listening on UDP port " << PORT << "...\n";
-
-    while (true) {
-        char buf[BUF_SIZE];
-        sockaddr_in from{};
-        socklen_t from_len = sizeof(from);
-
-        ssize_t n = recvfrom(sockfd, buf, BUF_SIZE - 1, 0, (sockaddr*)&from, &from_len);
-        if (n < 0) { perror("recvfrom"); continue; }
-
-        buf[n] = '\0'; // make it a C-string
-        std::cout << "Received: " << buf << std::endl;
-    }
-
-    close(sockfd);
-    return 0;
+  net.join();
+  return 0;
 }
