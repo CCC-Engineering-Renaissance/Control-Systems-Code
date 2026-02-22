@@ -2,7 +2,7 @@ import threading
 import time
 import sys #used to handle system level operations
 import configCamera as config 
-from cameraSender import cameraROV
+from camSend import cameraROV
 #for future we may need to do peripherals.py not sure yet though...
 def main():
     workers = []
@@ -16,7 +16,7 @@ def main():
         workers.append(worker)
         threads.append(t)
 
-        print(f"Started {cameraName}: ID {info['id']} on Port {info['port']}")
+        print(f"Started {cameraNames}: ID {info['id']} on Port {info['port']}")
 
     return workers, threads
 
