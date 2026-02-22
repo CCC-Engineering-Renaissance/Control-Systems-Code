@@ -33,8 +33,8 @@ int Claw::clampPWM(int pwm_us) const {
 // don't want to clamp around plus or minus rest or offset 
   return std::clamp(pwm_us_in, )
 }
+
 // Constructors
-// Section 3: Constructors (initialize safe defaults)
 
 Claw::Claw()
   : pin(-1),          // -1 means "invalid/unassigned" until constructed with a real pin
