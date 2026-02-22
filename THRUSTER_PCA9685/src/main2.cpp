@@ -1,10 +1,14 @@
-// main.cpp (single thruster, single axis)
+// main2.cpp (single thruster, single axis)
 // Right joystick Y (assumed mapped to s.pitch) drives thruster 0 power [-1, +1].
 //
 // Uses your existing connection layer:
 //   - server(PORT) running in background
 //   - is_Fresh(ms) watchdog
 //   - get_State() snapshot
+//
+// Behavior:
+//   - Stops thruster if packets go stale (watchdog)
+//   - Stops thruster when joystick is centered (within deadband)
 //
 // Wiring: set THRUSTER_PIN to the PCA9685 channel your ESC is on.
 
@@ -30,9 +34,9 @@ static inline float clamp1(float x) {
   if (x < -1.0f) return -1.0f;
   return x;
 }
-constexpr unsigned shor PORT = 5005
+
 int main() {
-  // Start UDP server in background (your connection.cpp must provide this).
+  // Start UDP server in background (your connections.cpp must provide this).
   std::thread net([&] { server(PORT); });
   net.detach();
 
@@ -66,16 +70,21 @@ int main() {
 
     // --- Pick ONE axis: right joystick Y ---
     // Assumption: connection layer maps right joystick Y to s.pitch.
-    // If yours differs, change this line to: s.vertical or s.forward etc.
     float axis = clamp1(s.pitch);
 
-    // Optional deadband to prevent small drift
+    // Deadband to prevent small drift
     const float DEAD = 0.08f;
     if (std::fabs(axis) < DEAD) axis = 0.0f;
 
-    // Send to thruster
+    // Command
     double cmd = clampd(axis, -1.0, 1.0);
-    thr.setPower(cmd, driver);
+
+    // Stop when no input; otherwise drive thruster
+    if (std::fabs(cmd) < 1e-5) {
+      thr.stop(driver);
+    } else {
+      thr.setPower(cmd, driver);
+    }
 
     // Debug
     cout << "RJ_Y=" << axis << " -> cmd=" << cmd << "     \r";
