@@ -1,0 +1,31 @@
+# Step 1: Use a Python "Base"
+# This downloads a tiny version of Linux that already has Python installed
+FROM python:3.9-slim
+
+# Step 2: Install "System" dependencies
+# OpenCV needs some basic Linux tools to handle video that aren't in the tiny Python base
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Step 3: Create a workspace
+# This creates a folder inside the container called /app
+WORKDIR /app
+
+# Step 4: Install your "Requirements"
+# We copy the requirements.txt file first to make builds faster later
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Step 5: Copy your Code
+# This copies everything in your current folder (testCameraFootage.py, configCamera.py) into /app
+COPY . .
+
+# Step 6: Open the "Door"
+# This tells Docker that the container will be using port 5000 for the web server
+EXPOSE 5000
+
+# Step 7: The "Run" Command
+# This is what runs when you start the container
+CMD ["python", "testCameraFootage.py"]

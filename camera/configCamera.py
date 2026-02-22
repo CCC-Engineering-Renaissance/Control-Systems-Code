@@ -1,28 +1,44 @@
 import cv2
 
+
+
 #for video stream
 framesPerSecond = 30 #how much frames we want displayed to surface side, may need to be lowered
 frameWidth = 640
 frameHeight = 480
-videoFormat =cv2.VideoWriter_fourcc(*'MJPG') #the four characters that define what file type the camera uses for formatting
+videoFormat = cv2.VideoWriter_fourcc(*'MJPG') #the four characters that define what file type the camera uses for formatting
 #we use MJPG do we can  get jpeg as our video format- again this can be changed to your liking
 bufferSize = 1 #number of frames held in the internal buffer- maybe the bucket??
 
-#for video view settings
-brightness = 50
+#for video view settings whatever surface side wants to add or get rid of you can do. i just made this for it to be easier to change for when displaying
+brightness = 50 
 contrast = 50
 saturation = 60
 
 
-#this is if you would like to change the gstreamer settings
-speedPreset = "ultrafast"
-tunePreset = "zerolatency"
+
+#encoder = "v4l2h264enc extra-controls=\"controls,video_bitrate=2000000,h264_i_frame_period=1\""  #for pi
+
+encoder = "x264enc bitrate=2000 tune=zerolatency speed-preset=ultrafast" #for laptop
+
+#for testing on laptop we may need to use x246enc
+
+# for the pi on the rov we will use v4l2h264enc so change to x264enc for the actual rov
 
 
 
-backend = cv2.CAP_V4L2 #uses standard linux driver for video
+
+# Change from cv2.CAP_V4L2 to cv2.CAP_DSHOW for Windows testing
+backend = cv2.CAP_DSHOW #use this for testing on windows
+
+
+#backend = cv2.CAP_V4L2 #tells you which driver is being used?
+
+
+#backend = cv2.CAP_V4L2 #uses standard linux driver for video
+
 guid = None #unique identifier for camera hardware
-bitRate = 1000000 #data rate of stream
+bitRate = 2000000 #data rate of stream, this is about 2Mbps
 timeOutInterval = 5000 #in milliseconds
 
 #for when saving video files
@@ -41,7 +57,7 @@ cameras = {
     "camera4": {"id": 4, "port": 5004},
 }
 
-laptopIPAddress = "192.168.8.244" #will use this ip address on laptop to see footage
+laptopIPAddress = "172.30.64.1" #will use this ip address on laptop to see footage
 # also make sure laptop and raspberry pi have an ip address with the first 6 digits matching the laptop's 
 
 chunkSize = 1024 #how much bites of data we group together per one "packet"
@@ -58,6 +74,4 @@ propertyMap = {
     cv2.CAP_PROP_BUFFERSIZE: bufferSize,
     cv2.CAP_PROP_FOURCC: videoFormat
 }
-
-
 
