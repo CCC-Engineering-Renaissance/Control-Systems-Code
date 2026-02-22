@@ -41,7 +41,7 @@ cameras = {
     "camera4": {"id": 4, "port": 5004},
 }
 
-laptopIPAddress = "192.168.1.100" #will use this ip address on laptop to see footage
+laptopIPAddress = "192.168.8.244" #will use this ip address on laptop to see footage
 # also make sure laptop and raspberry pi have an ip address with the first 6 digits matching the laptop's 
 
 chunkSize = 1024 #how much bites of data we group together per one "packet"
