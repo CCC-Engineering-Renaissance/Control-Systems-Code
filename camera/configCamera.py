@@ -1,4 +1,5 @@
 import cv2
+import platform
 
 
 
@@ -17,9 +18,9 @@ saturation = 60
 
 
 
-#encoder = "v4l2h264enc extra-controls=\"controls,video_bitrate=2000000,h264_i_frame_period=1\""  #for pi
+encoder = "v4l2h264enc extra-controls=\"controls,video_bitrate=1500000,h264_i_frame_period=1\""  #for pi
 
-encoder = "x264enc bitrate=2000 tune=zerolatency speed-preset=ultrafast" #for laptop
+#encoder = "x264enc bitrate=2000 tune=zerolatency speed-preset=ultrafast" #for laptop
 
 #for testing on laptop we may need to use x246enc
 
@@ -29,7 +30,7 @@ encoder = "x264enc bitrate=2000 tune=zerolatency speed-preset=ultrafast" #for la
 
 
 # Change from cv2.CAP_V4L2 to cv2.CAP_DSHOW for Windows testing
-backend = cv2.CAP_DSHOW #use this for testing on windows
+backend = cv2.CAP_V4L2  #use this for testing on windows
 
 
 #backend = cv2.CAP_V4L2 #tells you which driver is being used?
