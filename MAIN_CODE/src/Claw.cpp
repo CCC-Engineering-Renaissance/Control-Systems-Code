@@ -1,10 +1,11 @@
-#include "Claw.h"
+#include "../include/Claw.h"
 
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <cstdint>
 
-#include "PiPCA9685/PCA9685.h"
+#include "../include/PCA9685.h"
 
 // Mostly reusing Thruster.cpp except Claw object is configured for Servos 
 //
@@ -17,7 +18,7 @@ namespace {
   }
 }
 
-bool Claw::isCorrectPin(int p)) const {
+bool Claw::isCorrectPin(int p) const {
   return (p >= kMinPin && p <= kMaxPin);
 }
 
@@ -25,13 +26,11 @@ double Claw::clampPosition(double pos) const {
   // Normalize position into [-1, +1]
   // Full reverse = -1 & Full forward = +1 about origin 
   
-  return std:clamp(pos, -1.0, 1.0);
+  return std::clamp(pos, -1.0, 1.0);
 }
 
 int Claw::clampPWM(int pwm_us) const {
-  int clamped = std::clamp(pwm_us, mun_us, max_us);
-// don't want to clamp around plus or minus rest or offset 
-  return std::clamp(pwm_us_in, )
+  return std::clamp(pwm_us, min_us, max_us);
 }
 
 // Constructors
@@ -174,4 +173,3 @@ int Claw::getRest() const { return rest; }
 int Claw::getOffset() const { return offset; }
 int Claw::getPWM() const { return pwm; }
 double Claw::getPower() const { return static_cast<double>(power); }
-    
