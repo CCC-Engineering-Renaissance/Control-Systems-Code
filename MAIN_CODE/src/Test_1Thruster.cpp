@@ -1,3 +1,4 @@
+
 #include "I2CPeripheral.h"
 #include "PCA9685.h"
 #include "Thruster.h"
@@ -48,18 +49,13 @@ int main() {
 
   // PCA9685 has 16 channels: 0..15.
   // Update these numbers to match acutal physical wiring.
-  constexpr int FRONT_LEFT_HORIZONTAL_CHANNEL  = 0;
-  constexpr int FRONT_RIGHT_HORIZONTAL_CHANNEL = 1;
-  constexpr int REAR_LEFT_HORIZONTAL_CHANNEL   = 2;
-  constexpr int REAR_RIGHT_HORIZONTAL_CHANNEL  = 3;
-  constexpr int LEFT_VERTICAL_CHANNEL          = 4;
-  constexpr int RIGHT_VERTICAL_CHANNEL         = 5;
-  constexpr int LEFT_VERTICAL_CHANNEL_2        = 6;
-  constexpr int RIGHT_VERTICAL_CHANNEL_2       = 7;
+  constexpr int THRUSTER_TEST_CHANNEL  = 0;
 
   // Thruster(pin) sets default rest=1500us, offset=400us, min=1100us, max=1900us
 
-  Thruster frontLeftHorizontal(FRONT_LEFT_HORIZONTAL_CHANNEL);
+  Thruster Test_Thruster(THRUSTER_TEST_CHANNEL);
+  
+  /*
   Thruster frontRightHorizontal(FRONT_RIGHT_HORIZONTAL_CHANNEL);
   Thruster rearLeftHorizontal(REAR_LEFT_HORIZONTAL_CHANNEL);
   Thruster rearRightHorizontal(REAR_RIGHT_HORIZONTAL_CHANNEL);
@@ -67,23 +63,23 @@ int main() {
   Thruster rightVertical(RIGHT_VERTICAL_CHANNEL);
   Thruster leftVertical2(LEFT_VERTICAL_CHANNEL_2);
   Thruster rightVertical2(RIGHT_VERTICAL_CHANNEL_2);
-
+*/
   cout << "Listening on UDP port " << PORT << "...\n";
 
-// Control loop
+
 
 
   while (true) {
 
    
-    // Safety stop: if packets are stale, stop everything
 
     // is_Fresh(250) is true if we got a packet within last 250ms.
     // If Python dies or WiFi drops, stop motors.
     //
     if (!is_Fresh(250)) {
 
-      frontLeftHorizontal.stop(driver);
+      Test_Thruster.stop(driver);
+      /*
       frontRightHorizontal.stop(driver);
       rearLeftHorizontal.stop(driver);
       rearRightHorizontal.stop(driver);
@@ -91,7 +87,7 @@ int main() {
       rightVertical.stop(driver);
       leftVertical2.stop(driver);
       rightVertical2.stop(driver);
-      
+      */
       cout << "STALE: stop\r";
       cout.flush();
 
@@ -103,26 +99,29 @@ int main() {
 
     POVState s = get_State();
 
-    // Pull out the motion commands and clamp them to [-1, 1]
-    float forwardCommand  = clamp1(s.forward);
-    float strafeCommand   = clamp1(s.strafe);
+                                                    
+
+    float test_command  = clamp1(s.forward);
+   
+    /*float strafeCommand   = clamp1(s.strafe);       // pick test command
     float yawCommand      = clamp1(s.yaw);
     float verticalCommand = clamp1(s.vertical);
     float pitchCommand    = clamp1(s.pitch);
     float rollCommand     = clamp1(s.roll);
-
+*/
     // Mix forward/strafe/yaw into 4 horizontal thrusters
-
+/*
     float frontLeftPower  = forwardCommand + strafeCommand + yawCommand;
     float frontRightPower = forwardCommand - strafeCommand - yawCommand;
     float rearLeftPower   = forwardCommand - strafeCommand + yawCommand;
     float rearRightPower  = forwardCommand + strafeCommand - yawCommand;
-
+*/
     // Normalize if any exceed magnitude 1
-    normalize4(frontLeftPower, frontRightPower, rearLeftPower, rearRightPower);
+//    normalize4(frontLeftPower, frontRightPower, rearLeftPower, rearRightPower);
 
     // Send power to horizontal thrusters
-    frontLeftHorizontal.setPower(frontLeftPower, driver);
+    Test_Thruster.setPower(test_command, driver);
+/*
     frontRightHorizontal.setPower(frontRightPower, driver);
     rearLeftHorizontal.setPower(rearLeftPower, driver);
     rearRightHorizontal.setPower(rearRightPower, driver);
@@ -140,19 +139,19 @@ int main() {
   rightVertical.setPower(rightVerticalPower, driver);
   leftVertical2.setPower(leftVertical2Power, driver);
   rightVertical2.setPower(rightVertical2Power, driver);
-
+*/
 
     // Debug print: show the incoming command values and final thruster outputs
 
         
-    cout
-    << "up=" << verticalCommand
-    << " pitch=" << pitchCommand
-    << " roll=" << rollCommand
-    << " | LVert=" << leftVerticalPower
-    << " RVert=" << rightVerticalPower
-    << " LVert2=" << leftVertical2Power
-    << " RVert2=" << rightVertical2Power
+    cout << "command= " << test_command 
+    //<< "up=" << verticalCommand
+    //<< " pitch=" << pitchCommand
+    //<< " roll=" << rollCommand
+    //<< " | LVert=" << leftVerticalPower
+    //<< " RVert=" << rightVerticalPower
+    //<< " LVert2=" << leftVertical2Power
+  //  << " RVert2=" << rightVertical2Power
     << "     \r";
     cout.flush();
 
