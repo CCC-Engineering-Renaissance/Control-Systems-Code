@@ -32,7 +32,7 @@ while True:
 
     now = time.time()
     if now - last >= period:
-        msg = f"0 0 0 0 {right_y:.3f} 0 0 0 0 0 0 0 0\n".encode("utf-8")
+    msg = f"{right_y:.3f} 0 0 0 0 0 0 0 0 0 0 0 0\n"
         sock.sendto(msg, (PI_IP, PORT))
         last = now
 

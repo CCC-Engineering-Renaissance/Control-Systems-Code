@@ -42,7 +42,7 @@ int main() {
 
   // PCA9685 driver
   PiPCA9685::PCA9685 driver("/dev/i2c-1", 0x40);
-  driver.set_pwm_freq(50);
+  driver.set_pwm_freq(25);
 
   // --- Single thruster setup ---
   constexpr int THRUSTER_PIN = 0;   // <-- CHANGE to your channel
