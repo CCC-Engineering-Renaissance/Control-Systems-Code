@@ -1,12 +1,15 @@
-import threading
+import threading 
 import time
 import sys #used to handle system level operations
 import configCamera as config 
 from cameraSender import cameraROV
 #for future we may need to do peripherals.py not sure yet though...
 def main():
+<<<<<<< HEAD
     workers = []
     threads = []
+=======
+>>>>>>> e0dfe54b (update)
     #loops through the cameras dictionary
     for cameraNames, info in config.cameras.items():
         worker = cameraROV(info["id"], info["port"])

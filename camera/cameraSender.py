@@ -19,7 +19,11 @@ class cameraROV:
         if self.cap.isOpened() and ret: #checks if camera is connected/sending data
             print(f"Camera {self.cameraID} is open and sending data")
             for prop, value in config.propertyMap.items(): #loops through resolution, etc.
+<<<<<<< HEAD
                 self.cap.set(prop, value) #applies setting to hardware
+=======
+                self.cap.set(prop, value) #applies settings to hardware
+>>>>>>> e0dfe54b (update)
            
             #this is the gstreamer pipeline string that converts the frames from the if statement into a stream in the network
             #if video is blurry/pixelated increase bitrate (you can do this in configCamera.py)
