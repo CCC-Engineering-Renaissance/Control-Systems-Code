@@ -16,6 +16,8 @@
 #include <vector>
 #include <algorithm>
 
+constexpr int PORT = 5005;
+
 using namespace std;
 static float clamp1(float x) {
   if (x >  1.0f) return  1.0f;
