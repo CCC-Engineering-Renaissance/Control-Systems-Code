@@ -23,6 +23,8 @@ For USB cameras use the /dev/videoN index reported by `ls /dev/video*`.
 """
 
 import cv2
+import fcntl
+import glob
 import socket
 import struct
 import threading
@@ -36,18 +38,8 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Configuration – adjust to your ROV's physical camera wiring
+# Configuration
 # ---------------------------------------------------------------------------
-
-# Maps camera name (sent by GUI buttons) to OpenCV VideoCapture index.
-# If a camera is not physically present, the server falls back to index 0.
-CAMERA_MAP = {
-    "front": 0,
-    "left":  1,
-    "right": 2,
-    "bot":   3,
-    "back":  4,
-}
 
 STREAM_PORT   = 5000    # GUI connects here to receive frames
 COMMAND_PORT  = 5001    # GUI connects here to send switch commands
@@ -55,6 +47,89 @@ JPEG_QUALITY  = 70      # 0-100; lower = smaller packets / higher latency tradeo
 FRAME_WIDTH   = 640
 FRAME_HEIGHT  = 480
 TARGET_FPS    = 15
+
+# Camera slot names in the order they will be assigned to discovered devices.
+# The first working /dev/videoN gets "front", the second gets "left", etc.
+CAMERA_SLOTS = ["front", "left", "right", "bot", "back"]
+
+# ---------------------------------------------------------------------------
+# Auto-detect valid capture devices
+# ---------------------------------------------------------------------------
+
+# V4L2 ioctl constants (Linux kernel uapi/linux/videodev2.h)
+# VIDIOC_QUERYCAP = _IOR('V', 0, struct v4l2_capability)  →  0x80685600
+# struct v4l2_capability: driver[16] card[32] bus_info[32] version[4]
+#                         capabilities[4] device_caps[4] reserved[12]  = 104 bytes
+_VIDIOC_QUERYCAP       = 0x80685600
+_V4L2_CAP_VIDEO_CAPTURE = 0x00000001
+_V4L2_CAP_SIZE          = 104
+_CAPABILITIES_OFFSET    = 84   # byte offset of the capabilities __u32 field
+
+
+def _is_v4l2_capture_device(dev_path: str) -> bool:
+    """
+    Return True if the device reports V4L2_CAP_VIDEO_CAPTURE via ioctl.
+
+    This checks the kernel's capability flag directly — no frame read needed —
+    so it correctly identifies cameras that are temporarily too busy to deliver
+    a frame (e.g. when multiple cameras share a USB hub at startup).
+    """
+    try:
+        with open(dev_path, "rb") as f:
+            buf = bytearray(_V4L2_CAP_SIZE)
+            fcntl.ioctl(f, _VIDIOC_QUERYCAP, buf)
+            caps = struct.unpack_from("<I", buf, _CAPABILITIES_OFFSET)[0]
+            return bool(caps & _V4L2_CAP_VIDEO_CAPTURE)
+    except OSError:
+        return False
+
+
+def _probe_capture_devices() -> list[int]:
+    """
+    Scan /dev/video0 … /dev/video15 and return a sorted list of indices whose
+    V4L2 capability flags include VIDEO_CAPTURE.
+
+    Using the V4L2 ioctl instead of a test frame-read avoids false negatives
+    caused by USB bandwidth contention when several cameras share a hub.
+    """
+    found = []
+    candidates = sorted(
+        int(p.replace("/dev/video", ""))
+        for p in glob.glob("/dev/video[0-9]*")
+    )
+    for idx in candidates:
+        dev_path = f"/dev/video{idx}"
+        if _is_v4l2_capture_device(dev_path):
+            found.append(idx)
+            log.info("  /dev/video%d  ✓ capture device", idx)
+        else:
+            log.info("  /dev/video%d  ✗ not a capture device (skipped)", idx)
+    return found
+
+
+def _build_camera_map() -> dict[str, int]:
+    """
+    Pair each discovered capture device with a named camera slot.
+    If fewer devices exist than slots, the extra slot names are omitted.
+    If no devices exist at all, fall back to index 0.
+    """
+    devices = _probe_capture_devices()
+    if not devices:
+        log.warning("No capture devices found – falling back to index 0")
+        devices = [0]
+
+    camera_map = {}
+    for slot, idx in zip(CAMERA_SLOTS, devices):
+        camera_map[slot] = idx
+        log.info("  Camera slot '%s'  →  /dev/video%d", slot, idx)
+
+    log.info("Active camera map: %s", camera_map)
+    return camera_map
+
+
+# Built once at startup; used by CameraServer._open_camera
+log.info("Probing video devices…")
+CAMERA_MAP = _build_camera_map()
 
 # ---------------------------------------------------------------------------
 
@@ -74,19 +149,17 @@ class CameraServer:
     def _open_camera(self, name: str) -> bool:
         idx = CAMERA_MAP.get(name)
         if idx is None:
-            log.warning("Unknown camera '%s' – ignoring", name)
+            log.warning(
+                "Camera slot '%s' has no device assigned "
+                "(only %d camera(s) detected at startup).",
+                name, len(CAMERA_MAP),
+            )
             return False
 
         cap = cv2.VideoCapture(idx)
         if not cap.isOpened():
-            log.warning(
-                "Camera '%s' (index %d) not available – falling back to index 0",
-                name, idx
-            )
-            cap = cv2.VideoCapture(0)
-            if not cap.isOpened():
-                log.error("No camera available on this system")
-                return False
+            log.error("Failed to open /dev/video%d for slot '%s'", idx, name)
+            return False
 
         cap.set(cv2.CAP_PROP_FRAME_WIDTH,  FRAME_WIDTH)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
