@@ -20,18 +20,18 @@ void normalize4(float &a, float &b, float &c, float &d) {
   }
 }
 
-// Below logic written in main as of 3/21/26 from line 104-136
+// Below is logic written in main as of 3/21/26 from line 109-136
 // At some point during the following 6 days it will be altered to include PID
 
-Thruster_Outputs Thruster_Mixer::mix(const POVState& s) const{
+Thruster_Outputs Thruster_Mixer::mix(const POVState& input) const{
 
  // Pull out the motion commands and clamp them to [-1, 1]
-  float forwardCommand  = clamp1(s.forward);
-  float strafeCommand   = clamp1(s.strafe);
-  float yawCommand      = clamp1(s.yaw);
-  float verticalCommand = clamp1(s.vertical);
-  float pitchCommand    = clamp1(s.pitch);
-  float rollCommand     = clamp1(s.roll);
+  float forwardCommand  = clamp1(input.forward);
+  float strafeCommand   = clamp1(input.strafe);
+  float yawCommand      = clamp1(input.yaw);
+  float verticalCommand = clamp1(input.vertical);
+  float pitchCommand    = clamp1(input.pitch);
+  float rollCommand     = clamp1(input.roll);
 
   /*   Thruster_Outputs struct used here replaces names like float frontLeftPower = forwardCommand +... with
         output.frontLeftHorizontal = forwardCommand +...*/

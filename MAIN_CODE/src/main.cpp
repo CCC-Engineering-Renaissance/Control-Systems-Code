@@ -1,6 +1,7 @@
 #include "I2CPeripheral.h"
 #include "PCA9685.h"
 #include "Thruster.h"
+#include "Thruster_Mixer.h"
 #include "connection.h"
 //#include <Eigen/Dense>
 //#include <Eigen/QR>
@@ -16,7 +17,7 @@
 #include <algorithm>
 
 using namespace std;
-static float clamp1(float x) {
+/*static float clamp1(float x) {
   if (x >  1.0f) return  1.0f;
   if (x < -1.0f) return -1.0f;
   return x;
@@ -30,7 +31,7 @@ static void normalize4(float &a, float &b, float &c, float &d) {
     a /= m; b /= m; c /= m; d /= m;
   }
 }
-
+*/ // commented out lines 14 - 34 to test Thruster_Mixer class
 int main() {
 
   // Run the UDP receiver in the background.
@@ -68,13 +69,12 @@ int main() {
   Thruster leftVertical2(LEFT_VERTICAL_CHANNEL_2);
   Thruster rightVertical2(RIGHT_VERTICAL_CHANNEL_2);
 
+  Thruster_Mixer mixer; // create mixer object to use for mixing each thruster object
+
   cout << "Listening on UDP port " << PORT << "...\n";
 
 // Control loop
-
-
   while (true) {
-
    
     // Safety stop: if packets are stale, stop everything
 
@@ -102,8 +102,12 @@ int main() {
     // Read the latest decoded controller state (thread-safe snapshot)
 
     POVState s = get_State();
+    
+    // mix thruster math for every object in "mix" method in Thruster_Mixer.cpp
+    Thruster_Outputs output = mixer.mix(input);
 
     // Pull out the motion commands and clamp them to [-1, 1]
+    /*
     float forwardCommand  = clamp1(s.forward);
     float strafeCommand   = clamp1(s.strafe);
     float yawCommand      = clamp1(s.yaw);
@@ -120,7 +124,7 @@ int main() {
 
     // Normalize if any exceed magnitude 1
     normalize4(frontLeftPower, frontRightPower, rearLeftPower, rearRightPower);
-
+    
     // Send power to horizontal thrusters
     frontLeftHorizontal.setPower(frontLeftPower, driver);
     frontRightHorizontal.setPower(frontRightPower, driver);
@@ -140,13 +144,26 @@ int main() {
   rightVertical.setPower(rightVerticalPower, driver);
   leftVertical2.setPower(leftVertical2Power, driver);
   rightVertical2.setPower(rightVertical2Power, driver);
+*/
 
+    // if this works you can delete the commented out logic 
+
+    //send power to vertical thrusters 
+  frontLeftHorizontal.setPower(output.frontLeftHorizontal, driver);
+  frontRightHorizontal.setPower(output.frontRightHorizontal, driver);
+  rearLeftHorizontal.setPower(output.rearLeftHorizontal, driver);
+  rearRightHorizontal.setPower(output.rearRightHorizontal, driver);
+
+  leftVertical.setPower(output.leftVertical, driver);
+  rightVertical.setPower(output.rightVertical, driver);
+  leftVertical2.setPower(output.leftVertical2, driver);
+  rightVertical2.setPower(output.rightVertical2, driver);
 
     // Debug print: show the incoming command values and final thruster outputs
-
-        
+  
+    /*
     cout
-    << "up=" << verticalCommand
+    << "input_up=" << verticalCommand
     << " pitch=" << pitchCommand
     << " roll=" << rollCommand
     << " | LVert=" << leftVerticalPower
@@ -155,7 +172,24 @@ int main() {
     << " RVert2=" << rightVertical2Power
     << "     \r";
     cout.flush();
-
+  */
+    cout
+    << "fwd=" << input.forward
+    << " strafe=" << input.strafe
+    << " yaw=" << input.yaw
+    << " | FLeftHor=" << output.frontLeftHorizontal
+    << " FRightHor=" << output.frontRightHorizontal
+    << " RLeftHor=" << output.rearLeftHorizontal
+    << " RRightHor=" << output.rearRightHorizontal
+    << " || up=" << input.vertical
+    << " pitch=" << input.pitch
+    << " roll=" << input.roll
+    << " | LeftVert=" << output.leftVertical
+    << " RightVert=" << output.rightVertical
+    << " LeftVert2=" << output.leftVertical2
+    << " RightVert2=" << output.rightVertical2
+    << "     \r";
+cout.flush();
     this_thread::sleep_for(chrono::milliseconds(50));
   }
 
