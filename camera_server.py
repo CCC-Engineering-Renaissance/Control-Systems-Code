@@ -22,6 +22,12 @@ For Raspberry Pi camera modules use index 0/1 (CSI) or /dev/video0 etc.
 For USB cameras use the /dev/videoN index reported by `ls /dev/video*`.
 """
 
+import os
+# Silence OpenCV's own verbose error output before importing cv2.
+# Without this, a disconnected USB camera floods the terminal with
+# repeated "Not a video capture device" lines from every failed ioctl.
+os.environ["OPENCV_LOG_LEVEL"] = "SILENT"
+
 import cv2
 import fcntl
 import glob
@@ -167,9 +173,25 @@ class CameraServer:
             )
             return False
 
-        cap = cv2.VideoCapture(idx)
-        if not cap.isOpened():
-            log.error("Failed to open /dev/video%d for slot '%s'", idx, name)
+        # Retry up to 3 times — a USB camera on a hub can take a moment to
+        # become available again after a brief disconnect or power fluctuation.
+        for attempt in range(1, 4):
+            cap = cv2.VideoCapture(idx)
+            if cap.isOpened():
+                break
+            cap.release()
+            if attempt < 3:
+                log.warning(
+                    "Cannot open /dev/video%d for slot '%s' (attempt %d/3) – retrying…",
+                    idx, name, attempt,
+                )
+                time.sleep(1.0)
+        else:
+            log.error(
+                "Failed to open /dev/video%d for slot '%s' after 3 attempts. "
+                "Camera may be physically disconnected.",
+                idx, name,
+            )
             return False
 
         cap.set(cv2.CAP_PROP_FRAME_WIDTH,  FRAME_WIDTH)
@@ -229,29 +251,53 @@ class CameraServer:
         # Wait until a camera is ready
         while self._running:
             with self._lock:
-                cap = self._cap
-            if cap is not None:
+                ready = self._cap is not None
+            if ready:
                 break
             time.sleep(0.1)
 
         log.info("Capture loop started at %d FPS", TARGET_FPS)
+
+        consecutive_failures = 0
+        FAILURE_WARN_THRESHOLD = 10   # log a warning after this many bad reads
+        FAILURE_DROP_THRESHOLD = 30   # give up and clear cap after this many
 
         while self._running:
             t0 = time.monotonic()
 
             # Hold the lock for the entire read so that _open_camera cannot
             # call cap.release() on the same object while we are mid-read.
-            # _open_camera also acquires this lock before releasing the old cap,
-            # so the two operations are mutually exclusive.
             with self._lock:
                 if self._cap is None:
                     time.sleep(0.1)
+                    consecutive_failures = 0
                     continue
                 ret, frame = self._cap.read()
+                active_name = self._active_name
 
             if not ret:
+                consecutive_failures += 1
+                if consecutive_failures == FAILURE_WARN_THRESHOLD:
+                    log.warning(
+                        "Camera '%s' (/dev/video%d): repeated read failures – "
+                        "possible USB disconnect or bandwidth issue.",
+                        active_name, CAMERA_MAP.get(active_name, -1),
+                    )
+                if consecutive_failures >= FAILURE_DROP_THRESHOLD:
+                    log.error(
+                        "Camera '%s' appears disconnected after %d failures. "
+                        "Clearing active camera – switch to another view.",
+                        active_name, consecutive_failures,
+                    )
+                    with self._lock:
+                        if self._cap is not None:
+                            self._cap.release()
+                            self._cap = None
+                    consecutive_failures = 0
                 time.sleep(0.05)
                 continue
+
+            consecutive_failures = 0
 
             ok, buf = cv2.imencode(".jpg", frame, encode_params)
             if ok:
