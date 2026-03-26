@@ -58,28 +58,39 @@ CAMERA_SLOTS = ["front", "left", "right", "bot", "back"]
 
 # V4L2 ioctl constants (Linux kernel uapi/linux/videodev2.h)
 # VIDIOC_QUERYCAP = _IOR('V', 0, struct v4l2_capability)  →  0x80685600
-# struct v4l2_capability: driver[16] card[32] bus_info[32] version[4]
-#                         capabilities[4] device_caps[4] reserved[12]  = 104 bytes
-_VIDIOC_QUERYCAP       = 0x80685600
-_V4L2_CAP_VIDEO_CAPTURE = 0x00000001
+# struct v4l2_capability layout (104 bytes total):
+#   driver[16]  card[32]  bus_info[32]  version[4]
+#   capabilities[4]  device_caps[4]  reserved[12]
+_VIDIOC_QUERYCAP        = 0x80685600
+_V4L2_CAP_VIDEO_CAPTURE = 0x00000001   # this node can capture video frames
+_V4L2_CAP_DEVICE_CAPS   = 0x80000000   # device_caps field is valid
 _V4L2_CAP_SIZE          = 104
-_CAPABILITIES_OFFSET    = 84   # byte offset of the capabilities __u32 field
+_CAPABILITIES_OFFSET    = 84   # physical-device capabilities (all nodes)
+_DEVICE_CAPS_OFFSET     = 88   # per-node capabilities (this specific node)
 
 
 def _is_v4l2_capture_device(dev_path: str) -> bool:
     """
-    Return True if the device reports V4L2_CAP_VIDEO_CAPTURE via ioctl.
+    Return True only if this specific device node can capture video frames.
 
-    This checks the kernel's capability flag directly — no frame read needed —
-    so it correctly identifies cameras that are temporarily too busy to deliver
-    a frame (e.g. when multiple cameras share a USB hub at startup).
+    VIDIOC_QUERYCAP exposes two capability fields:
+      • capabilities  – OR of caps across all nodes of the physical device
+      • device_caps   – caps for this specific /dev/videoN node only
+
+    Checking only 'capabilities' (the old approach) causes false positives:
+    metadata/output sibling nodes share the same physical device, so they
+    inherit the VIDEO_CAPTURE bit even though they cannot capture frames.
+    Using 'device_caps' (per-node) correctly excludes those siblings.
     """
     try:
         with open(dev_path, "rb") as f:
             buf = bytearray(_V4L2_CAP_SIZE)
             fcntl.ioctl(f, _VIDIOC_QUERYCAP, buf)
-            caps = struct.unpack_from("<I", buf, _CAPABILITIES_OFFSET)[0]
-            return bool(caps & _V4L2_CAP_VIDEO_CAPTURE)
+            caps        = struct.unpack_from("<I", buf, _CAPABILITIES_OFFSET)[0]
+            device_caps = struct.unpack_from("<I", buf, _DEVICE_CAPS_OFFSET)[0]
+            # Prefer per-node device_caps when the kernel supplies it
+            effective = device_caps if (caps & _V4L2_CAP_DEVICE_CAPS) else caps
+            return bool(effective & _V4L2_CAP_VIDEO_CAPTURE)
     except OSError:
         return False
 
@@ -228,14 +239,16 @@ class CameraServer:
         while self._running:
             t0 = time.monotonic()
 
+            # Hold the lock for the entire read so that _open_camera cannot
+            # call cap.release() on the same object while we are mid-read.
+            # _open_camera also acquires this lock before releasing the old cap,
+            # so the two operations are mutually exclusive.
             with self._lock:
-                cap = self._cap
+                if self._cap is None:
+                    time.sleep(0.1)
+                    continue
+                ret, frame = self._cap.read()
 
-            if cap is None:
-                time.sleep(0.1)
-                continue
-
-            ret, frame = cap.read()
             if not ret:
                 time.sleep(0.05)
                 continue
