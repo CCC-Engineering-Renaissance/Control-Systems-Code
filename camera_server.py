@@ -47,12 +47,21 @@ log = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
-STREAM_PORT   = 5000    # GUI connects here to receive frames
-COMMAND_PORT  = 5001    # GUI connects here to send switch commands
-JPEG_QUALITY  = 70      # 0-100; lower = smaller packets / higher latency tradeoff
-FRAME_WIDTH   = 640
-FRAME_HEIGHT  = 480
-TARGET_FPS    = 15
+STREAM_PORT  = 5000   # GUI connects here to receive frames
+COMMAND_PORT = 5001   # GUI connects here to send switch commands
+
+# Two capture modes matching the camera's native MJPEG modes.
+#   "live" – 2048×1536 @ 30fps  – normal ROV piloting / monitoring
+#   "hq"   – 4656×3496 @ 10fps  – high-resolution photogrammetry capture
+#
+# The camera outputs MJPEG natively at these modes, so USB bandwidth stays
+# manageable even at 16 MP.  JPEG_QUALITY only affects the re-encode done
+# by the Pi before sending over Ethernet (not the USB capture itself).
+MODES = {
+    "live": {"width": 2048, "height": 1536, "fps": 30, "jpeg_quality": 70},
+    "hq":   {"width": 4656, "height": 3496, "fps": 10, "jpeg_quality": 92},
+}
+DEFAULT_MODE = "live"
 
 # Camera slot names in the order they will be assigned to discovered devices.
 # The first working /dev/videoN gets "front", the second gets "left", etc.
@@ -158,6 +167,7 @@ class CameraServer:
         self._active_name  = "front"
         self._clients      = []             # connected stream sockets
         self._running      = False
+        self._mode         = DEFAULT_MODE   # "live" or "hq", switchable at runtime
 
     # ------------------------------------------------------------------
     # Camera management
@@ -194,9 +204,15 @@ class CameraServer:
             )
             return False
 
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH,  FRAME_WIDTH)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
-        cap.set(cv2.CAP_PROP_FPS,          TARGET_FPS)
+        with self._lock:
+            mode = MODES[self._mode]
+
+        # Request MJPEG from the camera so the sensor compresses on-chip.
+        # This keeps USB bandwidth low even at 16 MP.
+        cap.set(cv2.CAP_PROP_FOURCC,       cv2.VideoWriter_fourcc(*"MJPG"))
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH,  mode["width"])
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, mode["height"])
+        cap.set(cv2.CAP_PROP_FPS,          mode["fps"])
 
         with self._lock:
             if self._cap is not None:
@@ -204,13 +220,34 @@ class CameraServer:
             self._cap         = cap
             self._active_name = name
 
-        log.info("Camera set to '%s' (index %d)", name, idx)
+        log.info(
+            "Camera set to '%s' (index %d)  mode=%s  %dx%d @ %dfps",
+            name, idx, self._mode, mode["width"], mode["height"], mode["fps"],
+        )
         return True
 
     def switch_camera(self, name: str):
         """Thread-safe camera switch – runs in a background thread."""
         threading.Thread(
             target=self._open_camera, args=(name,), daemon=True
+        ).start()
+
+    def set_mode(self, mode: str):
+        """Switch capture resolution/fps mode and reopen the active camera."""
+        if mode not in MODES:
+            log.warning("Unknown mode '%s' (must be one of %s)", mode, list(MODES))
+            return
+        with self._lock:
+            self._mode        = mode
+            active_name       = self._active_name
+        cfg = MODES[mode]
+        log.info(
+            "Mode set to '%s'  →  %dx%d @ %dfps",
+            mode, cfg["width"], cfg["height"], cfg["fps"],
+        )
+        # Reopen the current camera at the new resolution
+        threading.Thread(
+            target=self._open_camera, args=(active_name,), daemon=True
         ).start()
 
     # ------------------------------------------------------------------
@@ -245,8 +282,6 @@ class CameraServer:
     # ------------------------------------------------------------------
 
     def _capture_loop(self):
-        interval      = 1.0 / TARGET_FPS
-        encode_params = [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY]
 
         # Wait until a camera is ready
         while self._running:
@@ -299,12 +334,16 @@ class CameraServer:
 
             consecutive_failures = 0
 
+            with self._lock:
+                mode_cfg = MODES[self._mode]
+            encode_params = [cv2.IMWRITE_JPEG_QUALITY, mode_cfg["jpeg_quality"]]
+
             ok, buf = cv2.imencode(".jpg", frame, encode_params)
             if ok:
                 self._broadcast(buf.tobytes())
 
             elapsed = time.monotonic() - t0
-            wait    = interval - elapsed
+            wait    = (1.0 / mode_cfg["fps"]) - elapsed
             if wait > 0:
                 time.sleep(wait)
 
@@ -354,6 +393,10 @@ class CameraServer:
                         cam_name = cmd[4:].lower().strip()
                         log.info("Switch command received: '%s'", cam_name)
                         self.switch_camera(cam_name)
+                    elif cmd.startswith("MODE:"):
+                        mode_name = cmd[5:].lower().strip()
+                        log.info("Mode command received: '%s'", mode_name)
+                        self.set_mode(mode_name)
         except OSError:
             pass
         finally:
