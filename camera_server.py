@@ -291,7 +291,7 @@ class CameraServer:
                 break
             time.sleep(0.1)
 
-        log.info("Capture loop started at %d FPS", TARGET_FPS)
+        log.info("Capture loop started")
 
         consecutive_failures = 0
         FAILURE_WARN_THRESHOLD = 10   # log a warning after this many bad reads
@@ -440,8 +440,8 @@ class CameraServer:
         ):
             threading.Thread(target=target, daemon=True).start()
         log.info(
-            "Camera server started  |  stream=%d  commands=%d  fps=%d",
-            STREAM_PORT, COMMAND_PORT, TARGET_FPS,
+            "Camera server started  |  stream=%d  commands=%d  default_mode=%s",
+            STREAM_PORT, COMMAND_PORT, DEFAULT_MODE,
         )
 
     def stop(self):
