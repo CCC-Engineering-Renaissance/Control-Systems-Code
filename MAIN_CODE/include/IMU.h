@@ -9,7 +9,7 @@ private:
   MPU6050 sensor;
 
   float ax, ay, az;
-  float gx, gy, gz;
+  float gr, gp, gy;
   float roll, pitch, yaw 
 
 public:
