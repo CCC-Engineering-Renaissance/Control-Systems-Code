@@ -15,7 +15,7 @@ private:
 public:
 
     IMU();
-    explicit IMU(int8_t address);
+    explicit IMU(int8_t address); // find out the address bruh
 
     void update();
 
