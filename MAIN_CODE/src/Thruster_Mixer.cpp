@@ -23,7 +23,10 @@ void normalize4(float &a, float &b, float &c, float &d) {
 // Below is logic written in main as of 3/21/26 from line 109-136
 // At some point during the following 6 days it will be altered to include PID
 
-Thruster_Outputs Thruster_Mixer::mix(const POVState& input) const{
+Thruster_Outputs Thruster_Mixer::mix(const POVState& input, 
+                                     float Yaw_PID_Output,
+                                     float Pitch_PID_Output,
+                                     float Roll_PID_Output) const{
 
  // Pull out the motion commands and clamp them to [-1, 1]
   float forwardCommand  = clamp1(input.forward);
@@ -37,12 +40,14 @@ Thruster_Outputs Thruster_Mixer::mix(const POVState& input) const{
         output.frontLeftHorizontal = forwardCommand +...*/
 
   Thruster_Outputs output{} //"output" comes from here so we dont say Thruster_Outputs.(thrusterobject)
+  
+  float Total_Yaw = yawCommand + Yaw_PID_Output; // IT IS POSSIBLE AFTER TESTING IT SHOULD BE '-' AND NOT '+' 
 
   // Mix forward/strafe/yaw into 4 horizontal thrusters | side note: yaw is rotation about z axis
-  output.frontLeftHorizontal  = forwardCommand + strafeCommand + yawCommand;
-  output.frontRightHorizontal = forwardCommand - strafeCommand - yawCommand;
-  output.rearLeftHorizontal   = forwardCommand - strafeCommand + yawCommand;
-  output.rearRightHorizontal  = forwardCommand + strafeCommand - yawCommand;
+  output.frontLeftHorizontal  = forwardCommand + strafeCommand + Total_Yaw;
+  output.frontRightHorizontal = forwardCommand - strafeCommand - Total_Yaw;
+  output.rearLeftHorizontal   = forwardCommand - strafeCommand + Total_Yaw;
+  output.rearRightHorizontal  = forwardCommand + strafeCommand - Total_Yaw;
 
 
   normalize4(
@@ -52,10 +57,14 @@ Thruster_Outputs Thruster_Mixer::mix(const POVState& input) const{
     output.rearRightHorizontal);
 
   // Mix vertical/pitch/roll into 4 vertical thrusters 
-  output.leftVertical   = verticalCommand + pitchCommand + rollCommand;
-  output.rightVertical  = verticalCommand + pitchCommand - rollCommand;
-  output.leftVertical2  = verticalCommand - pitchCommand + rollCommand;
-  output.rightVertical2 = verticalCommand - pitchCommand - rollCommand;
+
+  float Total_Pitch = pitchCommand + Pitch_PID_Output; // SAME NOTE AS LINE 44
+  float Total_Roll = rollCommand + Roll_PID_Output;
+
+  output.leftVertical   = verticalCommand + Total_Pitch + Total_Roll;
+  output.rightVertical  = verticalCommand + Total_Pitch - Total_Roll;
+  output.leftVertical2  = verticalCommand - Total_Pitch + Total_Roll;
+  output.rightVertical2 = verticalCommand - Total_Pitch - Total_Roll;
 
   normalize4(
     output.leftVertical,
@@ -63,6 +72,6 @@ Thruster_Outputs Thruster_Mixer::mix(const POVState& input) const{
     output.leftVertical2,
     output.rightVertical2);
 
-    return out;
+    return output;
 
 }

@@ -17,6 +17,7 @@ void signalHandler(int) {
     keepRunning = false;
 }
 
+
 int main() {
     // ---- Setup signal handling to allow CTRL+C exit ----
     std::signal(SIGINT, signalHandler);
@@ -59,9 +60,12 @@ int main() {
         imuSensor.update(); // Reads raw MPU6050, runs complementary filter
         // Example: input.pitch += imuSensor.getPitchCorrection();
         // Placeholder for PID integration
-
+        
+        float Yaw_PID_Output = Yaw_PID.update(yaw_Setpoint, yaw_Measured, dt);
+        float Pitch_PID_Output = Pitch_PID.update(pitch_Setpoint, pitch_Measured, dt);
+        float Roll_PID_Output = Roll_PID.update(roll_Setpoint, roll_Measured, dt);
         // Mix to thruster outputs
-        Thruster_Outputs outputs = mixer.mix(input);
+        Thruster_Outputs outputs = mixer.mix(input, Yaw_PID_Output, Pitch_PID_Output, Roll_PID_Output);
 
         // Send outputs to hardware
         frontLeftH.setPower(outputs.frontLeftHorizontal, pwmDriver);
