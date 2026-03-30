@@ -9,10 +9,10 @@ using namespace std;
 constexpr int PORT = 5005;
 
 // PCA9685, change pins
-constexpr int CH_ROTATE = 0;
-constexpr int CH_OPEN   = 1;
-constexpr int CH_PITCH  = 2;
-constexpr int CH_OPEN2  = 3;
+constexpr int CH_ROTATE = 9;
+constexpr int CH_OPEN   = 10;
+constexpr int CH_PITCH  = 11;
+constexpr int CH_OPEN2  = 12;
 
 int main() {
     std::thread net([&] { server(PORT); });
