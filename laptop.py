@@ -40,7 +40,7 @@ period = 1.0 / SEND_HZ
 last = 0.0
 
 while True:
-pygame.event.pump()
+    pygame.event.pump()
 
     # ── Manipulator inputs (buttons) ──
     claw_rotate = btn_pair(BTN_LB, BTN_RB)   # LB = -1, RB = +1
