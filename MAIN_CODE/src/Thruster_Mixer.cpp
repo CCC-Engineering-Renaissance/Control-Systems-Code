@@ -3,14 +3,13 @@
 #include <cmath>
 #include <algorithm>
 
-// Below are the lines in main from 19-32
-float clamp1(float x) {
+float Thruster_Mixer::clamp1(float x) {
   if (x >  1.0f) return  1.0f;
   if (x < -1.0f) return -1.0f;
   return x;
 }
 
-void normalize4(float &a, float &b, float &c, float &d) {
+void Thruster_Mixer::normalize4(float &a, float &b, float &c, float &d) {
   float m = std::max({std::abs(a), std::abs(b), std::abs(c), std::abs(d)});
   if (m > 1.0f) {
     a /= m;
@@ -29,17 +28,17 @@ Thruster_Outputs Thruster_Mixer::mix(const POVState& input,
                                      float Roll_PID_Output) const{
 
  // Pull out the motion commands and clamp them to [-1, 1]
-  float forwardCommand  = clamp1(input.forward);
-  float strafeCommand   = clamp1(input.strafe);
-  float yawCommand      = clamp1(input.yaw);
-  float verticalCommand = clamp1(input.vertical);
-  float pitchCommand    = clamp1(input.pitch);
-  float rollCommand     = clamp1(input.roll);
+  float forwardCommand  = Thruster_Mixer::clamp1(input.forward);
+  float strafeCommand   = Thruster_Mixer::clamp1(input.strafe);
+  float yawCommand      = Thruster_Mixer::clamp1(input.yaw);
+  float verticalCommand = Thruster_Mixer::clamp1(input.vertical);
+  float pitchCommand    = Thruster_Mixer::clamp1(input.pitch);
+  float rollCommand     = Thruster_Mixer::clamp1(input.roll);
 
   /*   Thruster_Outputs struct used here replaces names like float frontLeftPower = forwardCommand +... with
         output.frontLeftHorizontal = forwardCommand +...*/
 
-  Thruster_Outputs output{} //"output" comes from here so we dont say Thruster_Outputs.(thrusterobject)
+  Thruster_Outputs output{}; //"output" comes from here so we dont say Thruster_Outputs.(thrusterobject)
   
   float Total_Yaw = yawCommand + Yaw_PID_Output; // IT IS POSSIBLE AFTER TESTING IT SHOULD BE '-' AND NOT '+' 
 
@@ -50,7 +49,7 @@ Thruster_Outputs Thruster_Mixer::mix(const POVState& input,
   output.rearRightHorizontal  = forwardCommand + strafeCommand - Total_Yaw;
 
 
-  normalize4(
+  Thruster_Mixer::normalize4(
     output.frontLeftHorizontal,
     output.frontRightHorizontal,
     output.rearLeftHorizontal,
@@ -66,7 +65,7 @@ Thruster_Outputs Thruster_Mixer::mix(const POVState& input,
   output.leftVertical2  = verticalCommand - Total_Pitch + Total_Roll;
   output.rightVertical2 = verticalCommand - Total_Pitch - Total_Roll;
 
-  normalize4(
+  Thruster_Mixer::normalize4(
     output.leftVertical,
     output.rightVertical,
     output.leftVertical2,

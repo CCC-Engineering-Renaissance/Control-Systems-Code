@@ -1,10 +1,16 @@
 import socket
-import os
 import math
-from inputs import get_gamepad, devices
-from inputs import devices
 import threading
 import time
+import sys
+
+try:
+    from inputs import devices
+except ModuleNotFoundError as exc:
+    devices = None
+    _IMPORT_ERROR = exc
+else:
+    _IMPORT_ERROR = None
 
 class XboxController(object):
     Max_Trig_Val = math.pow(2, 8)
@@ -112,105 +118,123 @@ class XboxController(object):
                 #   event.code="BTN_SOUTH" -> attr="A", mul=1
                 setattr(self, attr, event.state * mul)
 
-SERVER_IP = "127.0.0.1"
-SERVER_PORT = 5005
-
-if len(devices.gamepads) < 2:
-    raise RuntimeError(f"Need 2 gamepads (ROV + Claw). Found {len(devices.gamepads)}")
-            
-joyROV = XboxController(devices.gamepads[0])
-joyClaw = XboxController(devices.gamepads[1])
-
-pushed = False
-pitchAngle = 0
-yawAngle = 0
-als = False
 def clamp(v, lo=-1.0, hi=1.0):
     return lo if v < lo else hi if v > hi else v
 
-with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-    sock.settimeout(2.0)
+SERVER_IP = "127.0.0.1"
+SERVER_PORT = 5005
 
-    while True:
+def require_inputs():
+    if _IMPORT_ERROR is not None:
+        raise RuntimeError(
+            "Missing Python package 'inputs'. Install it with 'python3 -m pip install inputs'."
+        ) from _IMPORT_ERROR
 
-        rjy = joyROV.axis("RightJoystickY", dz=0.05, factor=0.2)
-        rjx = joyROV.axis("RightJoystickX", dz=0.05, factor=0.2)
+def get_controllers():
+    require_inputs()
 
-        if als:
-            pitchAngle += (rjy ** 3) * 0.001
-            yawAngle += (rjx ** 3) * 0.001
+    gamepads = devices.gamepads
+    if len(gamepads) < 2:
+        raise RuntimeError(f"Need 2 gamepads (ROV + Claw). Found {len(gamepads)}")
 
-        if joyROV.Y == 1 and not pushed:
-            als = not als
-        pushed = (joyROV.Y == 1)
+    return XboxController(gamepads[0]), XboxController(gamepads[1])
 
-        if pitchAngle < -180:
-            pitchAngle += 360
-        elif pitchAngle > 180:
-            pitchAngle -= 360
+def main():
+    joyROV, joyClaw = get_controllers()
+    pushed = False
+    pitchAngle = 0
+    yawAngle = 0
+    als = False
 
-        if yawAngle < -180:
-            yawAngle += 360
-        elif yawAngle > 180:
-            yawAngle -= 360
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.settimeout(2.0)
 
-        scale = 0.5
-        if joyROV.A == 1:
-            scale = 1.0
-        if joyROV.B == 1:
-            scale = 0.25
-        if joyROV.X == 1:
-            scale = 1.5
+        while True:
 
-        out = 1 if als else 0
-     
-        ljy = joyROV.axis("LeftJoystickY", dz=0.05, factor=0.2)
-        ljx = joyROV.axis("LeftJoystickX", dz=0.05, factor=0.2)
-        lt  = joyROV.axis("LeftTrigger",   dz=0.02, factor=0.2)
-        rt  = joyROV.axis("RightTrigger",  dz=0.02, factor=0.2)
+            rjy = joyROV.axis("RightJoystickY", dz=0.05, factor=0.2)
+            rjx = joyROV.axis("RightJoystickX", dz=0.05, factor=0.2)
 
-        claw_rjy = joyClaw.axis("RightJoystickY", dz=0.05, factor=0.2)
-        claw_rjx = joyClaw.axis("RightJoystickX", dz=0.05, factor=0.2)
-        claw_ljy = joyClaw.axis("LeftJoystickY",  dz=0.05, factor=0.2)
+            if als:
+                pitchAngle += (rjy ** 3) * 0.001
+                yawAngle += (rjx ** 3) * 0.001
 
-        claw_lt = joyClaw.axis("LeftTrigger", dz=0.02, factor=0.2)
-        claw_rt = joyClaw.axis("RightTrigger", dz=0.02, factor=0.2)
+            if joyROV.Y == 1 and not pushed:
+                als = not als
+            pushed = (joyROV.Y == 1)
 
-        MESSAGE = (
-            str(ljy * scale * 1.5) + " " +
-            str(ljx * scale * -1) + " " +
-            str((rt - lt) / -3.0 * scale) + " " +
-            str(rjx * 0.66 * scale * -2) + " " +
-            str(rjy * 0.66 * scale * 2) + " " +
-            str((joyROV.RightBumper - joyROV.LeftBumper) * scale) + " " +
-            str(round((claw_rjx ** 3), 1) * 0.15) + " " +
-            str((int(joyClaw.B) - int(joyClaw.A)) * 1.4) + " " +
-            str(round((claw_rjy ** 3), 1) * 0.4) + " " +
-            str((claw_ljy ** 3) * -0.25) + " " +
-            str(pitchAngle) + " " +
-            str(yawAngle) + " " +
-            str(out)
-        )
-        print(
-            f"X: {ljy:.2f}",
-            f"Y: {ljx:.2f}",
-            f"Z: {(rt - lt) / 4.0:.2f}",
-            f"Roll: {joyROV.RightBumper - joyROV.LeftBumper}",
-            f"Pitch: {rjy:.2f}",
-            f"Yaw: {rjx:.2f}",
-            f"Claw Pitch: {(-claw_rjy) ** 3:.1f}",
-            f"Claw Open: {joyClaw.RightTrigger - joyClaw.LeftTrigger:.1f}",
-            f"Claw Yaw: {claw_rjx:.1f}",
-            f"Claw Rotate: {joyClaw.LeftJoystickX:.1f}",
-            f"PitchAngle: {pitchAngle:.1f}",
-            f"YawAngle: {yawAngle:.1f}",
-            als
-        )
+            if pitchAngle < -180:
+                pitchAngle += 360
+            elif pitchAngle > 180:
+                pitchAngle -= 360
 
-        sock.sendto(MESSAGE.encode(), (SERVER_IP, SERVER_PORT))
+            if yawAngle < -180:
+                yawAngle += 360
+            elif yawAngle > 180:
+                yawAngle -= 360
 
-        time.sleep(0.01)
+            scale = 0.5
+            if joyROV.A == 1:
+                scale = 1.0
+            if joyROV.B == 1:
+                scale = 0.25
+            if joyROV.X == 1:
+                scale = 1.5
 
+            out = 1 if als else 0
+        
+            ljy = joyROV.axis("LeftJoystickY", dz=0.05, factor=0.2)
+            ljx = joyROV.axis("LeftJoystickX", dz=0.05, factor=0.2)
+            lt  = joyROV.axis("LeftTrigger",   dz=0.02, factor=0.2)
+            rt  = joyROV.axis("RightTrigger",  dz=0.02, factor=0.2)
+
+            claw_rjy = joyClaw.axis("RightJoystickY", dz=0.05, factor=0.2)
+            claw_rjx = joyClaw.axis("RightJoystickX", dz=0.05, factor=0.2)
+            claw_ljy = joyClaw.axis("LeftJoystickY",  dz=0.05, factor=0.2)
+
+            claw_lt = joyClaw.axis("LeftTrigger", dz=0.02, factor=0.2)
+            claw_rt = joyClaw.axis("RightTrigger", dz=0.02, factor=0.2)
+
+            MESSAGE = (
+                str(ljy * scale * 1.5) + " " +
+                str(ljx * scale * -1) + " " +
+                str((rt - lt) / -3.0 * scale) + " " +
+                str(rjx * 0.66 * scale * -2) + " " +
+                str(rjy * 0.66 * scale * 2) + " " +
+                str((joyROV.RightBumper - joyROV.LeftBumper) * scale) + " " +
+                str(round((claw_rjx ** 3), 1) * 0.15) + " " +
+                str((int(joyClaw.B) - int(joyClaw.A)) * 1.4) + " " +
+                str(round((claw_rjy ** 3), 1) * 0.4) + " " +
+                str((claw_ljy ** 3) * -0.25) + " " +
+                str(pitchAngle) + " " +
+                str(yawAngle) + " " +
+                str(out)
+            )
+            print(
+                f"X: {ljy:.2f}",
+                f"Y: {ljx:.2f}",
+                f"Z: {(rt - lt) / 4.0:.2f}",
+                f"Roll: {joyROV.RightBumper - joyROV.LeftBumper}",
+                f"Pitch: {rjy:.2f}",
+                f"Yaw: {rjx:.2f}",
+                f"Claw Pitch: {(-claw_rjy) ** 3:.1f}",
+                f"Claw Open: {joyClaw.RightTrigger - joyClaw.LeftTrigger:.1f}",
+                f"Claw Yaw: {claw_rjx:.1f}",
+                f"Claw Rotate: {joyClaw.LeftJoystickX:.1f}",
+                f"PitchAngle: {pitchAngle:.1f}",
+                f"YawAngle: {yawAngle:.1f}",
+                als
+            )
+
+            sock.sendto(MESSAGE.encode(), (SERVER_IP, SERVER_PORT))
+
+            time.sleep(0.01)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:
+        print(f"thruster.py error: {exc}", file=sys.stderr)
+        raise SystemExit(1)
 
 
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "MPU6050.h"
+#include <cstdint>
 
 class IMU {
 
@@ -10,7 +11,7 @@ private:
 
   float ax, ay, az;
   float gr, gp, gy;
-  float roll, pitch, yaw 
+  float roll, pitch, yaw;
 
 public:
 

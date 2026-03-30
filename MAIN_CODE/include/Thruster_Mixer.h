@@ -28,5 +28,8 @@ private:
   static void normalize4(float& a, float& b, float& c, float& d);
 
 public:
-  Thruster_Outputs mix(const POVState& s) const;
+  Thruster_Outputs mix(const POVState& s,
+                       float Yaw_PID_Output = 0.0f,
+                       float Pitch_PID_Output = 0.0f,
+                       float Roll_PID_Output = 0.0f) const;
 };

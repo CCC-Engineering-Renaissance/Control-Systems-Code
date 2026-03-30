@@ -10,6 +10,7 @@ LIBS := -lboost_system -li2c
 ROV_OBJS := \
   out/main.o \
   out/connection.o \
+  out/Thruster_Mixer.o \
   out/Thruster.o \
   out/PCA9685.o \
   out/I2CPeripheral.o
@@ -40,6 +41,9 @@ out/connection.o: src/connection.cpp include/connection.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 out/Thruster.o: src/Thruster.cpp include/Thruster.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+out/Thruster_Mixer.o: src/Thruster_Mixer.cpp include/Thruster_Mixer.h include/connection.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 out/Claw.o: src/Claw.cpp include/Claw.h include/PCA9685.h

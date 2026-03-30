@@ -7,7 +7,7 @@
 
 #define GYRO_RANGE 0 //Select which gyroscope range to use (see the table below) - Default is 0
 //	Gyroscope Range
-	0	+/- 250 degrees/second
+//	0	+/- 250 degrees/second
 //	1	+/- 500 degrees/second
 //	2	+/- 1000 degrees/second
 //	3	+/- 2000 degrees/second
@@ -16,7 +16,7 @@
 
 #define ACCEL_RANGE 0 //Select which accelerometer range to use (see the table below) - Default is 0
 //	Accelerometer Range
-	0	+/- 2g
+//	0	+/- 2g
 //	1	+/- 4g
 //	2	+/- 8g
 //	3	+/- 16g
