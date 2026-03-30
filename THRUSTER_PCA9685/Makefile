@@ -3,7 +3,7 @@ TARGET := rov
 CXX := g++
 CXXFLAGS := -std=c++17 -g -O0 -Wall -Wextra -pthread
 INCLUDES := -I./include
-LIBS := -lboost_system
+LIBS := -lboost_system -li2c
 
 SRCS := \
   src/main.cpp \

@@ -4,6 +4,7 @@
 #include <vector>
 #include <csignal>
 
+<<<<<<< HEAD
 #include "connection.h"       // For POVState input
 #include "Thruster_Mixer.h"   // Mix joystick/POV commands to thruster outputs
 #include "Thruster.h"         // Individual thruster abstraction
@@ -15,6 +16,15 @@ volatile bool keepRunning = true;
 // Signal handler to stop loop safely
 void signalHandler(int) {
     keepRunning = false;
+=======
+constexpr int PORT = 5005;
+
+using namespace std;
+static float clamp1(float x) {
+  if (x >  1.0f) return  1.0f;
+  if (x < -1.0f) return -1.0f;
+  return x;
+>>>>>>> cf9d9829 (added codex fixes)
 }
 
 
