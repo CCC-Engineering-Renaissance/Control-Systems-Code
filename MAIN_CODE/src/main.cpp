@@ -23,10 +23,16 @@ void signalHandler(int) {
 int main() {
   std::signal(SIGINT, signalHandler);
 
+  std::cout << "ROV starting...\n";
+  std::cout << "Listening for UDP on port " << kPort << "\n";
+
   std::thread net([] { server(kPort); });
 
   PiPCA9685::PCA9685 driver("/dev/i2c-1", 0x40);
   driver.set_pwm_freq(50.0);
+
+  std::cout << "PCA9685 initialized on /dev/i2c-1 at address 0x40\n";
+  std::cout << "ROV is ON\n";
 
   Thruster frontLeftHorizontal(0);
   Thruster frontRightHorizontal(1);
@@ -39,10 +45,9 @@ int main() {
 
   Thruster_Mixer mixer;
 
-  // Tune these values later on the real ROV
   PID yawPID(0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
   PID pitchPID(0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
-  PID rollPID(0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
+  PID rollPID(0.02f, 0.0f, 0.01f, -1.0f, 0.0f + 1.0f);
 
   auto lastTime = std::chrono::steady_clock::now();
 
@@ -61,6 +66,9 @@ int main() {
       pitchPID.reset();
       rollPID.reset();
 
+      std::cout << "Waiting for controller packets...\r";
+      std::cout.flush();
+
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
       continue;
     }
@@ -71,7 +79,6 @@ int main() {
 
     const POVState input = get_State();
 
-    // Replace these with real IMU readings
     float measuredPitch = 0.0f;
     float measuredYaw   = 0.0f;
     float measuredRoll  = 0.0f;
@@ -81,11 +88,8 @@ int main() {
     float rollPIDOutput = 0.0f;
 
     if (input.als) {
-      // Uses target angles coming from thruster.py / connection.cpp
       pitchPIDOutput = pitchPID.update(input.pitchAngle, measuredPitch, dt);
       yawPIDOutput   = yawPID.update(input.yawAngle, measuredYaw, dt);
-
-      // If you do not have a roll angle target yet, keep roll target at 0
       rollPIDOutput  = rollPID.update(0.0f, measuredRoll, dt);
     } else {
       yawPID.reset();
@@ -105,6 +109,9 @@ int main() {
     leftVertical2.setPower(output.leftVertical2, driver);
     rightVertical2.setPower(output.rightVertical2, driver);
 
+    std::cout << "ROV running...                    \r";
+    std::cout.flush();
+
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 
@@ -118,6 +125,6 @@ int main() {
   rightVertical2.stop(driver);
 
   net.detach();
-  std::cout << "Exiting safely.\n";
+  std::cout << "\nExiting safely.\n";
   return 0;
 }
