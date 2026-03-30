@@ -9,8 +9,8 @@ public:
 
 private:
     float Kp, Ki, Kd;
-    float integral;
-    float prev_error;
+    float integral = 0.0f;
+    float prev_error = 0.0f;
     float min_output, max_output;
 };
 

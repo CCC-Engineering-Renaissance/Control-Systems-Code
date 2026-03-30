@@ -5,14 +5,14 @@ CXXFLAGS := -std=c++17 -g -O0 -Wall -Wextra -pthread
 INCLUDES := -I./include
 LIBS := -lboost_system -li2c
 
-ROV_OBJS := out/main.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PCA9685.o out/I2CPeripheral.o
+ROV_OBJS := out/main.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/PCA9685.o out/I2CPeripheral.o
 
 all: out $(TARGET)
 
 $(TARGET): $(ROV_OBJS)
 	$(CXX) $(CXXFLAGS) $(ROV_OBJS) $(LIBS) -o $(TARGET)
 
-out/main.o: src/main.cpp include/Thruster.h include/Thruster_Mixer.h include/PCA9685.h include/connection.h
+out/main.o: src/main.cpp include/Thruster.h include/Thruster_Mixer.h include/PCA9685.h include/connection.h include/PID.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 out/connection.o: src/connection.cpp include/connection.h
@@ -22,6 +22,9 @@ out/Thruster.o: src/Thruster.cpp include/Thruster.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 out/Thruster_Mixer.o: src/Thruster_Mixer.cpp include/Thruster_Mixer.h include/connection.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+out/PID.o: src/PID.cpp include/PID.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 out/PCA9685.o: src/PCA9685.cpp include/PCA9685.h include/I2CPeripheral.h include/Constants.h
