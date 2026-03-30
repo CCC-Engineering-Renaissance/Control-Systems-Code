@@ -1,155 +1,118 @@
-import socket
 import math
-import threading
-import time
+import socket
 import sys
+import time
+import pygame
 
-try:
-    from inputs import devices
-except ModuleNotFoundError as exc:
-    devices = None
-    _IMPORT_ERROR = exc
-else:
-    _IMPORT_ERROR = None
+PI_IP = "192.168.8.128"
+PORT = 5005
+SEND_HZ = 100
 
-class XboxController(object):
-    Max_Trig_Val = math.pow(2, 8)
-    Max_Joy_Val = math.pow(2, 15)
-    # initializes buttons and analogue inputs
-    def __init__(self, gamepad):
-        self.gamepad = gamepad
-        self.LeftJoystickY = 0
-        self.LeftJoystickX = 0
-        self.RightJoystickY = 0
-        self.RightJoystickX = 0
-        self.LeftTrigger = 0
-        self.RightTrigger = 0
-        self.LeftBumper = 0
-        self.RightBumper = 0
-        self.A = 0
-        self.X = 0
-        self.Y = 0
-        self.B = 0
-        self.LeftThumb = 0
-        self.RightThumb = 0
-        self.Back = 0
-        self.Start = 0
-        self.LeftDPad = 0
-        self.RightDPad = 0
-        self.UpDPad = 0
-        self.DownDPad = 0
-
-        self._filtered = {
-            "LeftJoystickY" : 0.0,
-            "LeftJoystickX" : 0.0,
-            "RightJoystickY" : 0.0,
-            "RightJoystickX" : 0.0,
-            "LeftTrigger" : 0.0,
-            "RightTrigger" : 0.0,
-        }
-
-        joy  = 1.0 / self.Max_Joy_Val
-        trig = 1.0 / self.Max_Trig_Val
-        # maps all event vals to self gamepad stuff
-        self._event_map = {
-            "ABS_Y": ("LeftJoystickY",  joy),
-            "ABS_X": ("LeftJoystickX",  joy),
-            "ABS_RY": ("RightJoystickY", joy),
-            "ABS_RX": ("RightJoystickX", joy),
-
-            "ABS_Z":  ("LeftTrigger",  trig),
-            "ABS_RZ": ("RightTrigger", trig),
-
-            "BTN_TL": ("LeftBumper",  1.0),
-            "BTN_TR": ("RightBumper", 1.0),
-
-            "BTN_SOUTH": ("A", 1.0),
-            "BTN_NORTH": ("Y", 1.0),
-            "BTN_WEST":  ("X", 1.0),
-            "BTN_EAST":  ("B", 1.0),
-
-            "BTN_THUMBL": ("LeftThumb",  1.0),
-            "BTN_THUMBR": ("RightThumb", 1.0),
-
-            "BTN_SELECT": ("Back",  1.0),
-            "BTN_START":  ("Start", 1.0),
-
-            "BTN_TRIGGER_HAPPY1": ("LeftDPad",  1.0),
-            "BTN_TRIGGER_HAPPY2": ("RightDPad", 1.0),
-            "BTN_TRIGGER_HAPPY3": ("UpDPad",    1.0),
-            "BTN_TRIGGER_HAPPY4": ("DownDPad",  1.0),
-        }
-
-        self._monitor_thread = threading.Thread(target=self._monitor_controller, args=(), daemon=True)
-        self._monitor_thread.start()
-    #deadzones for analogue inputs
-    def apply_deadzone(self, value, dz = 0.05):
-        return 0 if abs(value) < dz else value 
-    # analogue smoothing(?)
-    def smooth(self, prev, new, factor=0.2):
-        return prev * (1- factor) + new * factor
-
-    def axis(self, name, dz=0.05, factor=0.2):
-        raw = float(getattr(self, name))
-        raw = self.apply_deadzone(raw, dz)
-        prev = self._filtered.get(name, 0.0)
-        val = self.smooth(prev, raw, factor)
-        self._filtered[name] = val
-        return val
-    # read analogue inputs
-    def read(self):
-        x = self.axis("LeftJoystickX")
-        y = self.axis("LeftJoystickY")
-        a = self.A
-        b = self.X
-        rb = self.RightBumper
-        return [x, y, a, b, rb]
-    
-    def _monitor_controller(self):
-        while True:
-            for event in self.gamepad.read():
-                mapping = self._event_map.get(event.code)
-                if mapping is None:
-                    continue  # ignore events we don't care about
-
-                attr, mul = mapping
-                # Example:
-                #   event.code="ABS_Y" -> attr="LeftJoystickY", mul=1/MAX_JOY_VAL
-                #   event.code="BTN_SOUTH" -> attr="A", mul=1
-                setattr(self, attr, event.state * mul)
+# Xbox-style button mapping for many pygame controller setups
+BTN_A  = 0
+BTN_B  = 1
+BTN_X  = 2
+BTN_Y  = 3
+BTN_LB = 4
+BTN_RB = 5
+BTN_BACK = 6
+BTN_START = 7
 
 def clamp(v, lo=-1.0, hi=1.0):
     return lo if v < lo else hi if v > hi else v
 
-SERVER_IP = "192.168.8.128"
-SERVER_PORT = 5005
+def apply_deadzone(value, dz=0.05):
+    return 0.0 if abs(value) < dz else value
 
-def require_inputs():
-    if _IMPORT_ERROR is not None:
-        raise RuntimeError(
-            "Missing Python package 'inputs'. Install it with 'python3 -m pip install inputs'."
-        ) from _IMPORT_ERROR
+def smooth(prev, new, factor=0.2):
+    return prev * (1.0 - factor) + new * factor
+
+class XboxController:
+    def __init__(self, joystick: pygame.joystick.Joystick):
+        self.js = joystick
+        self.filtered = {
+            "LeftJoystickX": 0.0,
+            "LeftJoystickY": 0.0,
+            "RightJoystickX": 0.0,
+            "RightJoystickY": 0.0,
+            "LeftTrigger": 0.0,
+            "RightTrigger": 0.0,
+        }
+
+    def _get_axis_raw(self, name: str) -> float:
+        # Common pygame Xbox mappings on Linux can vary a bit.
+        # These defaults are the most typical.
+        if name == "LeftJoystickX":
+            return self.js.get_axis(0)
+        if name == "LeftJoystickY":
+            return -self.js.get_axis(1)
+        if name == "RightJoystickX":
+            return self.js.get_axis(3)
+        if name == "RightJoystickY":
+            return -self.js.get_axis(4)
+        if name == "LeftTrigger":
+            # Often axis 2 or shared trigger axis depending on driver.
+            return (self.js.get_axis(2) + 1.0) / 2.0
+        if name == "RightTrigger":
+            # Often axis 5 on Linux.
+            return (self.js.get_axis(5) + 1.0) / 2.0
+        return 0.0
+
+    def axis(self, name, dz=0.05, factor=0.2):
+        raw = self._get_axis_raw(name)
+        raw = apply_deadzone(raw, dz)
+        prev = self.filtered.get(name, 0.0)
+        val = smooth(prev, raw, factor)
+        self.filtered[name] = val
+        return val
+
+    @property
+    def A(self): return self.js.get_button(BTN_A)
+    @property
+    def B(self): return self.js.get_button(BTN_B)
+    @property
+    def X(self): return self.js.get_button(BTN_X)
+    @property
+    def Y(self): return self.js.get_button(BTN_Y)
+    @property
+    def LeftBumper(self): return self.js.get_button(BTN_LB)
+    @property
+    def RightBumper(self): return self.js.get_button(BTN_RB)
 
 def get_controllers():
-    require_inputs()
+    pygame.init()
+    pygame.joystick.init()
 
-    gamepads = devices.gamepads
-    if len(gamepads) < 2:
-        raise RuntimeError(f"Need 2 gamepads (ROV + Claw). Found {len(gamepads)}")
+    count = pygame.joystick.get_count()
+    if count < 2:
+        raise RuntimeError(f"Need 2 gamepads (ROV + Claw). Found {count}")
 
-    return XboxController(gamepads[0]), XboxController(gamepads[1])
+    js0 = pygame.joystick.Joystick(0)
+    js1 = pygame.joystick.Joystick(1)
+    js0.init()
+    js1.init()
+
+    print("ROV controller:", js0.get_name())
+    print("Claw controller:", js1.get_name())
+
+    return XboxController(js0), XboxController(js1)
 
 def main():
     joyROV, joyClaw = get_controllers()
+
     pushed = False
-    pitchAngle = 0
-    yawAngle = 0
+    pitchAngle = 0.0
+    yawAngle = 0.0
     als = False
 
+    period = 1.0 / SEND_HZ
+    last = 0.0
+
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-        sock.settimeout(2.0)
+        print(f"Sending to {PI_IP}:{PORT}")
 
         while True:
+            pygame.event.pump()
 
             rjy = joyROV.axis("RightJoystickY", dz=0.05, factor=0.2)
             rjx = joyROV.axis("RightJoystickX", dz=0.05, factor=0.2)
@@ -181,53 +144,54 @@ def main():
                 scale = 1.5
 
             out = 1 if als else 0
-        
+
             ljy = joyROV.axis("LeftJoystickY", dz=0.05, factor=0.2)
             ljx = joyROV.axis("LeftJoystickX", dz=0.05, factor=0.2)
-            lt  = joyROV.axis("LeftTrigger",   dz=0.02, factor=0.2)
-            rt  = joyROV.axis("RightTrigger",  dz=0.02, factor=0.2)
+            lt  = joyROV.axis("LeftTrigger", dz=0.02, factor=0.2)
+            rt  = joyROV.axis("RightTrigger", dz=0.02, factor=0.2)
 
             claw_rjy = joyClaw.axis("RightJoystickY", dz=0.05, factor=0.2)
             claw_rjx = joyClaw.axis("RightJoystickX", dz=0.05, factor=0.2)
-            claw_ljy = joyClaw.axis("LeftJoystickY",  dz=0.05, factor=0.2)
+            claw_ljy = joyClaw.axis("LeftJoystickY", dz=0.05, factor=0.2)
 
-            claw_lt = joyClaw.axis("LeftTrigger", dz=0.02, factor=0.2)
-            claw_rt = joyClaw.axis("RightTrigger", dz=0.02, factor=0.2)
-
-            MESSAGE = (
-                str(ljy * scale * 1.5) + " " +
-                str(ljx * scale * -1) + " " +
-                str((rt - lt) / -3.0 * scale) + " " +
-                str(rjx * 0.66 * scale * -2) + " " +
-                str(rjy * 0.66 * scale * 2) + " " +
-                str((joyROV.RightBumper - joyROV.LeftBumper) * scale) + " " +
-                str(round((claw_rjx ** 3), 1) * 0.15) + " " +
-                str((int(joyClaw.B) - int(joyClaw.A)) * 1.4) + " " +
-                str(round((claw_rjy ** 3), 1) * 0.4) + " " +
-                str((claw_ljy ** 3) * -0.25) + " " +
-                str(pitchAngle) + " " +
-                str(yawAngle) + " " +
-                str(out)
-            )
-            print(
-                f"X: {ljy:.2f}",
-                f"Y: {ljx:.2f}",
-                f"Z: {(rt - lt) / 4.0:.2f}",
-                f"Roll: {joyROV.RightBumper - joyROV.LeftBumper}",
-                f"Pitch: {rjy:.2f}",
-                f"Yaw: {rjx:.2f}",
-                f"Claw Pitch: {(-claw_rjy) ** 3:.1f}",
-                f"Claw Open: {joyClaw.RightTrigger - joyClaw.LeftTrigger:.1f}",
-                f"Claw Yaw: {claw_rjx:.1f}",
-                f"Claw Rotate: {joyClaw.LeftJoystickX:.1f}",
-                f"PitchAngle: {pitchAngle:.1f}",
-                f"YawAngle: {yawAngle:.1f}",
-                als
+            msg = (
+                f"{ljy * scale * 1.5} "
+                f"{ljx * scale * -1} "
+                f"{(rt - lt) / -3.0 * scale} "
+                f"{rjx * 0.66 * scale * -2} "
+                f"{rjy * 0.66 * scale * 2} "
+                f"{(joyROV.RightBumper - joyROV.LeftBumper) * scale} "
+                f"{round((claw_rjx ** 3), 1) * 0.15} "
+                f"{(int(joyClaw.B) - int(joyClaw.A)) * 1.4} "
+                f"{round((claw_rjy ** 3), 1) * 0.4} "
+                f"{(claw_ljy ** 3) * -0.25} "
+                f"{pitchAngle} "
+                f"{yawAngle} "
+                f"{out}\n"
             )
 
-            sock.sendto(MESSAGE.encode(), (SERVER_IP, SERVER_PORT))
+            now = time.time()
+            if now - last >= period:
+                sock.sendto(msg.encode(), (PI_IP, PORT))
+                last = now
 
-            time.sleep(0.01)
+                print(
+                    f"X: {ljy:.2f}",
+                    f"Y: {ljx:.2f}",
+                    f"Z: {(rt - lt) / 4.0:.2f}",
+                    f"Roll: {joyROV.RightBumper - joyROV.LeftBumper}",
+                    f"Pitch: {rjy:.2f}",
+                    f"Yaw: {rjx:.2f}",
+                    f"Claw Pitch: {(-claw_rjy) ** 3:.1f}",
+                    f"Claw Open: {joyClaw.RightBumper - joyClaw.LeftBumper if False else (int(joyClaw.B) - int(joyClaw.A)):.1f}",
+                    f"Claw Yaw: {claw_rjx:.1f}",
+                    f"Claw Rotate: {claw_ljy:.1f}",
+                    f"PitchAngle: {pitchAngle:.1f}",
+                    f"YawAngle: {yawAngle:.1f}",
+                    als
+                )
+
+            time.sleep(0.001)
 
 if __name__ == "__main__":
     try:
