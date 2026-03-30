@@ -14,22 +14,11 @@ MKDIR_P := mkdir -p out
 RM_F := rm -f
 endif
 
-# ── rov (main thruster control) ──
-ROV_OBJS := \
-  out/main.o \
-  out/connection.o \
-  out/Thruster_Mixer.o \
-  out/Thruster.o \
-  out/PCA9685.o \
-  out/I2CPeripheral.o
+# rov (main thruster control)
+ROV_OBJS := out/main.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PCA9685.o out/I2CPeripheral.o
 
-# ── manipulator (arm servo control) ──
-MANIP_OBJS := \
-  out/manipulator.o \
-  out/connection.o \
-  out/Claw.o \
-  out/PCA9685.o \
-  out/I2CPeripheral.o
+# manipulator (arm servo control)
+MANIP_OBJS := out/manipulator.o out/connection.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o
 
 all: out $(TARGET)
 
