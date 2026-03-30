@@ -6,6 +6,14 @@ CXXFLAGS := -std=c++17 -g -O0 -Wall -Wextra -pthread
 INCLUDES := -I./include
 LIBS := -lboost_system -li2c
 
+ifeq ($(OS),Windows_NT)
+MKDIR_P := if not exist out mkdir out
+RM_F := del /Q
+else
+MKDIR_P := mkdir -p out
+RM_F := rm -f
+endif
+
 # ── rov (main thruster control) ──
 ROV_OBJS := \
   out/main.o \
@@ -23,7 +31,7 @@ MANIP_OBJS := \
   out/PCA9685.o \
   out/I2CPeripheral.o
 
-all: out $(TARGET) $(MANIP)
+all: out $(TARGET)
 
 $(TARGET): $(ROV_OBJS)
 	$(CXX) $(CXXFLAGS) $(ROV_OBJS) $(LIBS) -o $(TARGET)
@@ -56,7 +64,7 @@ out/I2CPeripheral.o: src/I2CPeripheral.cpp include/I2CPeripheral.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 out:
-	mkdir -p out
+	$(MKDIR_P)
 
 clean:
-	rm -f $(TARGET) $(MANIP) out/*.o
+	-$(RM_F) $(TARGET) $(MANIP) out\*.o out/*.o

@@ -121,7 +121,7 @@ class XboxController(object):
 def clamp(v, lo=-1.0, hi=1.0):
     return lo if v < lo else hi if v > hi else v
 
-SERVER_IP = "127.0.0.1"
+SERVER_IP = "192.168.8.128"
 SERVER_PORT = 5005
 
 def require_inputs():
