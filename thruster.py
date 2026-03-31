@@ -9,20 +9,26 @@ PORT = 5005
 SEND_HZ = 100
 
 # Xbox-style button mapping for many pygame controller setups
-BTN_A  = 0
-BTN_B  = 1
-BTN_X  = 2
-BTN_Y  = 3
-BTN_LB = 4
-BTN_RB = 5
-BTN_BACK = 6
+BTN_A     = 0
+BTN_B     = 1
+BTN_X     = 2
+BTN_Y     = 3
+BTN_LB    = 4
+BTN_RB    = 5
+BTN_BACK  = 6
 BTN_START = 7
+
+ALS_DZ = 0.15  # tighter deadzone for angle accumulation
 
 def clamp(v, lo=-1.0, hi=1.0):
     return lo if v < lo else hi if v > hi else v
 
 def apply_deadzone(value, dz=0.05):
-    return 0.0 if abs(value) < dz else value
+    if abs(value) < dz:
+        return 0.0
+    # Rescale so output starts at 0.0 right at the deadzone edge, no lurch
+    sign = 1.0 if value > 0 else -1.0
+    return sign * (abs(value) - dz) / (1.0 - dz)
 
 def smooth(prev, new, factor=0.2):
     return prev * (1.0 - factor) + new * factor
@@ -31,17 +37,15 @@ class XboxController:
     def __init__(self, joystick: pygame.joystick.Joystick):
         self.js = joystick
         self.filtered = {
-            "LeftJoystickX": 0.0,
-            "LeftJoystickY": 0.0,
+            "LeftJoystickX":  0.0,
+            "LeftJoystickY":  0.0,
             "RightJoystickX": 0.0,
             "RightJoystickY": 0.0,
-            "LeftTrigger": 0.0,
-            "RightTrigger": 0.0,
+            "LeftTrigger":    0.0,
+            "RightTrigger":   0.0,
         }
 
     def _get_axis_raw(self, name: str) -> float:
-        # Common pygame Xbox mappings on Linux can vary a bit.
-        # These defaults are the most typical.
         if name == "LeftJoystickX":
             return self.js.get_axis(0)
         if name == "LeftJoystickY":
@@ -51,14 +55,12 @@ class XboxController:
         if name == "RightJoystickY":
             return -self.js.get_axis(4)
         if name == "LeftTrigger":
-            # Often axis 2 or shared trigger axis depending on driver.
             return (self.js.get_axis(2) + 1.0) / 2.0
         if name == "RightTrigger":
-            # Often axis 5 on Linux.
             return (self.js.get_axis(5) + 1.0) / 2.0
         return 0.0
 
-    def axis(self, name, dz=0.05, factor=0.2):
+    def axis(self, name, dz=0.10, factor=0.2):
         raw = self._get_axis_raw(name)
         raw = apply_deadzone(raw, dz)
         prev = self.filtered.get(name, 0.0)
@@ -75,7 +77,7 @@ class XboxController:
     @property
     def Y(self): return self.js.get_button(BTN_Y)
     @property
-    def LeftBumper(self): return self.js.get_button(BTN_LB)
+    def LeftBumper(self):  return self.js.get_button(BTN_LB)
     @property
     def RightBumper(self): return self.js.get_button(BTN_RB)
 
@@ -92,7 +94,7 @@ def get_controllers():
     js0.init()
     js1.init()
 
-    print("ROV controller:", js0.get_name())
+    print("ROV controller:",  js0.get_name())
     print("Claw controller:", js1.get_name())
 
     return XboxController(js0), XboxController(js1)
@@ -100,13 +102,13 @@ def get_controllers():
 def main():
     joyROV, joyClaw = get_controllers()
 
-    pushed = False
-    pitchAngle = 0.0
-    yawAngle = 0.0
-    als = False
+    pushed      = False
+    pitchAngle  = 0.0
+    yawAngle    = 0.0
+    als         = False
 
     period = 1.0 / SEND_HZ
-    last = 0.0
+    last   = 0.0
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         print(f"Sending to {PI_IP}:{PORT}")
@@ -114,12 +116,15 @@ def main():
         while True:
             pygame.event.pump()
 
-            rjy = joyROV.axis("RightJoystickY", dz=0.05, factor=0.2)
-            rjx = joyROV.axis("RightJoystickX", dz=0.05, factor=0.2)
+            # Read right stick for ALS angle accumulation with tighter deadzone
+            rjy_raw = joyROV._get_axis_raw("RightJoystickY")
+            rjx_raw = joyROV._get_axis_raw("RightJoystickX")
 
             if als:
-                pitchAngle += (rjy ** 3) * 0.001
-                yawAngle += (rjx ** 3) * 0.001
+                rjy_als = apply_deadzone(rjy_raw, dz=ALS_DZ)
+                rjx_als = apply_deadzone(rjx_raw, dz=ALS_DZ)
+                pitchAngle += (rjy_als ** 3) * 0.001
+                yawAngle   += (rjx_als ** 3) * 0.001
 
             if joyROV.Y == 1 and not pushed:
                 als = not als
@@ -145,14 +150,16 @@ def main():
 
             out = 1 if als else 0
 
-            ljy = joyROV.axis("LeftJoystickY", dz=0.05, factor=0.2)
-            ljx = joyROV.axis("LeftJoystickX", dz=0.05, factor=0.2)
-            lt  = joyROV.axis("LeftTrigger", dz=0.02, factor=0.2)
-            rt  = joyROV.axis("RightTrigger", dz=0.02, factor=0.2)
+            ljy = joyROV.axis("LeftJoystickY",   dz=0.10, factor=0.2)
+            ljx = joyROV.axis("LeftJoystickX",   dz=0.10, factor=0.2)
+            lt  = joyROV.axis("LeftTrigger",      dz=0.05, factor=0.2)
+            rt  = joyROV.axis("RightTrigger",     dz=0.05, factor=0.2)
+            rjy = joyROV.axis("RightJoystickY",   dz=0.10, factor=0.2)
+            rjx = joyROV.axis("RightJoystickX",   dz=0.10, factor=0.2)
 
-            claw_rjy = joyClaw.axis("RightJoystickY", dz=0.05, factor=0.2)
-            claw_rjx = joyClaw.axis("RightJoystickX", dz=0.05, factor=0.2)
-            claw_ljy = joyClaw.axis("LeftJoystickY", dz=0.05, factor=0.2)
+            claw_rjy = joyClaw.axis("RightJoystickY", dz=0.10, factor=0.2)
+            claw_rjx = joyClaw.axis("RightJoystickX", dz=0.10, factor=0.2)
+            claw_ljy = joyClaw.axis("LeftJoystickY",  dz=0.10, factor=0.2)
 
             msg = (
                 f"{ljy * scale * 1.5} "
@@ -183,7 +190,7 @@ def main():
                     f"Pitch: {rjy:.2f}",
                     f"Yaw: {rjx:.2f}",
                     f"Claw Pitch: {(-claw_rjy) ** 3:.1f}",
-                    f"Claw Open: {joyClaw.RightBumper - joyClaw.LeftBumper if False else (int(joyClaw.B) - int(joyClaw.A)):.1f}",
+                    f"Claw Open: {(int(joyClaw.B) - int(joyClaw.A)):.1f}",
                     f"Claw Yaw: {claw_rjx:.1f}",
                     f"Claw Rotate: {claw_ljy:.1f}",
                     f"PitchAngle: {pitchAngle:.1f}",
@@ -199,8 +206,3 @@ if __name__ == "__main__":
     except Exception as exc:
         print(f"thruster.py error: {exc}", file=sys.stderr)
         raise SystemExit(1)
-
-
-
-
-
