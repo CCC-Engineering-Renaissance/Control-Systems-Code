@@ -2,7 +2,6 @@
 #include <csignal>
 #include <iostream>
 #include <thread>
-
 #include "PCA9685.h"
 #include "Thruster.h"
 #include "Thruster_Mixer.h"
@@ -10,29 +9,35 @@
 #include "PID.h"
 
 namespace {
+  volatile std::sig_atomic_t keepRunning = 1;
+  constexpr unsigned short kPort        = 5005;
+  constexpr int   kStalePacketMs        = 250;
+  constexpr float kMaxDt                = 0.1f;
+  constexpr int   kArmDelayMs           = 500;
 
-volatile std::sig_atomic_t keepRunning = 1;
-constexpr unsigned short kPort = 5005;
-
-void signalHandler(int) {
-  keepRunning = 0;
-}
-
-}  // namespace
+  void signalHandler(int) {
+    keepRunning = 0;
+  }
+} // namespace
 
 int main() {
   std::signal(SIGINT, signalHandler);
-
   std::cout << "ROV starting...\n";
   std::cout << "Listening for UDP on port " << kPort << "\n";
 
-  std::thread net([] { server(kPort); });
+  std::thread net([] {
+    try {
+      server(kPort);
+    } catch (const std::exception& e) {
+      std::cerr << "Network thread exception: " << e.what() << "\n";
+    } catch (...) {
+      std::cerr << "Network thread unknown exception\n";
+    }
+  });
 
   PiPCA9685::PCA9685 driver("/dev/i2c-1", 0x40);
   driver.set_pwm_freq(50.0);
-
   std::cout << "PCA9685 initialized on /dev/i2c-1 at address 0x40\n";
-  std::cout << "ROV is ON\n";
 
   Thruster frontLeftHorizontal(0);
   Thruster frontRightHorizontal(1);
@@ -43,16 +48,28 @@ int main() {
   Thruster leftVertical2(6);
   Thruster rightVertical2(7);
 
-  Thruster_Mixer mixer;
+  // Send neutral immediately so ESCs don't see garbage PWM on boot
+  frontLeftHorizontal.stop(driver);
+  frontRightHorizontal.stop(driver);
+  rearLeftHorizontal.stop(driver);
+  rearRightHorizontal.stop(driver);
+  leftVertical.stop(driver);
+  rightVertical.stop(driver);
+  leftVertical2.stop(driver);
+  rightVertical2.stop(driver);
+  std::cout << "All thrusters set to neutral, waiting for ESCs to arm...\n";
+  std::this_thread::sleep_for(std::chrono::milliseconds(kArmDelayMs));
+  std::cout << "ROV is ON\n";
 
-  PID yawPID(0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
+  Thruster_Mixer mixer;
+  PID yawPID  (0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
   PID pitchPID(0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
-  PID rollPID(0.02f, 0.0f, 0.01f, -1.0f, 0.0f + 1.0f);
+  PID rollPID (0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
 
   auto lastTime = std::chrono::steady_clock::now();
 
   while (keepRunning) {
-    if (!is_Fresh(250)) {
+    if (!is_Fresh(kStalePacketMs)) {
       frontLeftHorizontal.stop(driver);
       frontRightHorizontal.stop(driver);
       rearLeftHorizontal.stop(driver);
@@ -61,36 +78,36 @@ int main() {
       rightVertical.stop(driver);
       leftVertical2.stop(driver);
       rightVertical2.stop(driver);
-
       yawPID.reset();
       pitchPID.reset();
       rollPID.reset();
-
+      lastTime = std::chrono::steady_clock::now();
       std::cout << "Waiting for controller packets...\r";
       std::cout.flush();
-
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
       continue;
     }
 
     auto now = std::chrono::steady_clock::now();
     float dt = std::chrono::duration<float>(now - lastTime).count();
-    lastTime = now;
+    lastTime  = now;
+    dt        = std::min(dt, kMaxDt);
 
     const POVState input = get_State();
 
+    // NOTE: measured values are placeholders — replace with real IMU readings
     float measuredPitch = 0.0f;
     float measuredYaw   = 0.0f;
     float measuredRoll  = 0.0f;
 
-    float yawPIDOutput = 0.0f;
+    float yawPIDOutput   = 0.0f;
     float pitchPIDOutput = 0.0f;
-    float rollPIDOutput = 0.0f;
+    float rollPIDOutput  = 0.0f;
 
     if (input.als) {
       pitchPIDOutput = pitchPID.update(input.pitchAngle, measuredPitch, dt);
-      yawPIDOutput   = yawPID.update(input.yawAngle, measuredYaw, dt);
-      rollPIDOutput  = rollPID.update(0.0f, measuredRoll, dt);
+      yawPIDOutput   = yawPID  .update(input.yawAngle,   measuredYaw,   dt);
+      rollPIDOutput  = rollPID .update(0.0f,             measuredRoll,  dt);
     } else {
       yawPID.reset();
       pitchPID.reset();
@@ -100,18 +117,17 @@ int main() {
     const Thruster_Outputs output =
         mixer.mix(input, yawPIDOutput, pitchPIDOutput, rollPIDOutput);
 
-    frontLeftHorizontal.setPower(output.frontLeftHorizontal, driver);
+    frontLeftHorizontal.setPower(output.frontLeftHorizontal,   driver);
     frontRightHorizontal.setPower(output.frontRightHorizontal, driver);
-    rearLeftHorizontal.setPower(output.rearLeftHorizontal, driver);
-    rearRightHorizontal.setPower(output.rearRightHorizontal, driver);
-    leftVertical.setPower(output.leftVertical, driver);
-    rightVertical.setPower(output.rightVertical, driver);
-    leftVertical2.setPower(output.leftVertical2, driver);
-    rightVertical2.setPower(output.rightVertical2, driver);
+    rearLeftHorizontal.setPower(output.rearLeftHorizontal,     driver);
+    rearRightHorizontal.setPower(output.rearRightHorizontal,   driver);
+    leftVertical.setPower(output.leftVertical,                 driver);
+    rightVertical.setPower(output.rightVertical,               driver);
+    leftVertical2.setPower(output.leftVertical2,               driver);
+    rightVertical2.setPower(output.rightVertical2,             driver);
 
     std::cout << "ROV running...                    \r";
     std::cout.flush();
-
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 
@@ -123,7 +139,6 @@ int main() {
   rightVertical.stop(driver);
   leftVertical2.stop(driver);
   rightVertical2.stop(driver);
-
   net.detach();
   std::cout << "\nExiting safely.\n";
   return 0;
