@@ -17,9 +17,10 @@ contrast = 50
 saturation = 60
 
 
-
+# use encoder below for pi
 encoder = "v4l2h264enc extra-controls=\"controls,video_bitrate=1500000,h264_i_frame_period=1\""  #for pi
 
+#use encoder below for laptop testing
 #encoder = "x264enc bitrate=2000 tune=zerolatency speed-preset=ultrafast" #for laptop
 
 #for testing on laptop we may need to use x246enc

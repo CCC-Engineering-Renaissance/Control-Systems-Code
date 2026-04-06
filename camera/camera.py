@@ -1,8 +1,9 @@
+
 import multiprocessing
 import time 
 import sys
 import configCamera as config
-from camSend import cameraROV 
+from cameraSend import cameraROV 
  
 def startCamera(name, cameraID, port):
     worker = cameraROV(cameraID, port)
@@ -37,6 +38,9 @@ if __name__ == "__main__":
             p.join()
         print("Exiting.")
         sys.exit() 
+
+
+
 
 
 
