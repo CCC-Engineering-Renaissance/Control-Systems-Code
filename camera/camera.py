@@ -1,41 +1,49 @@
-import threading 
-import time
-import sys #used to handle system level operations
-import configCamera as config 
-from cameraSender import cameraROV
-#for future we may need to do peripherals.py not sure yet though...
-def main():
-<<<<<<< HEAD
-    workers = []
-    threads = []
-=======
->>>>>>> e0dfe54b (update)
-    #loops through the cameras dictionary
-    for cameraNames, info in config.cameras.items():
-        worker = cameraROV(info["id"], info["port"])
-        t = threading.Thread(target=worker.stream, daemon=True)
-        t.start()
 
-        workers.append(worker)
-        threads.append(t)
+import multiprocessing
+import time 
+import sys
+import configCamera as config
+from cameraSend import cameraROV 
+ 
+def startCamera(name, cameraID, port):
+    worker = cameraROV(cameraID, port)
+    if worker.initSuccess:
+        print(f"Process Started: {name} (ID {cameraID} on Port {port})")
+        worker.stream()
+    else:
+        print(f"Process Failed: {name}")
 
-        print(f"Started {cameraName}: ID {info['id']} on Port {info['port']}")
+def main(): 
+    cameraProcesses = []
+    for cameraName, info in config.cameras.items():
+        p = multiprocessing.Process(
+            target = startCamera,
+            args = (cameraName, info["id"], info["port"]),
+            daemon = True
+        )
+        p.start()
+        cameraProcesses.append(p)
+    return cameraProcesses
 
-    return workers, threads
+if __name__ == "__main__": 
+    activeStreams = main()
+    try: 
+        print("ROV Camera System Active. Press Ctrl+C to stop.")
+        while True: 
+            time.sleep(1) 
+    except KeyboardInterrupt: 
+        print("\nStopping all camera processes...")
+        for p in activeStreams:
+            p.terminate()
+            p.join()
+        print("Exiting.")
+        sys.exit() 
 
-if __name__ == "__main__":
 
-    workers, threads = main() #starts the camera set ups from cameraROV first
-    try:
 
-        print("All cameras have been initialized. Press ctrl + c to stop")
 
-        while True:
 
-            time.sleep(1)
-    #catches when you press Ctrl+C
-    except KeyboardInterrupt:
 
-        print("\nStopping all camera streams...")
-        #exits the program
-        sys.exit()
+
+
+ 
