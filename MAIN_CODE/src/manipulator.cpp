@@ -19,13 +19,13 @@ int main() {
     PiPCA9685::PCA9685 driver("/dev/i2c-1", 0x40);
     driver.set_pwm_freq(50);
 
-    Claw rotate(CH_ROTATE, 1500, 1000);
-    Claw open(CH_OPEN, 1500, 1000);
-    Claw pitch(CH_PITCH, 1500, 1000);
+    Claw rotate(CH_ROTATE, 1500, 556);
+    Claw open(CH_OPEN, 1500, 556);
+    Claw pitch(CH_PITCH, 1500, 556);
 
-    rotate.setLimits(500, 2500);
-    open.setLimits(500, 2500);
-    pitch.setLimits(500, 2500);
+    rotate.setLimits(944, 2056);
+    open.setLimits(944, 2056);
+    pitch.setLimits(944, 2056);
 
     Claw* servos[] = { &rotate, &open, &pitch };
     constexpr int NUM_SERVOS = 3;
