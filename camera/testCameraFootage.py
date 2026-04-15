@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 # Create a list of 5 camera objects (IDs 0, 1, 2, 3, 4)
 caps = []
-for i in range(5):
+for i in range(1):
     caps.append(cv2.VideoCapture(i, config.backend))
 
 def generate_frames(index):
