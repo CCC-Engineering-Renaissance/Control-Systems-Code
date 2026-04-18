@@ -6,7 +6,7 @@ import pygame
 
 PI_IP = "192.168.8.128"
 PORT = 5005
-SEND_HZ = 100
+SEND_HZ = 20
 
 # Xbox-style button mapping for many pygame controller setups
 BTN_A     = 0
@@ -89,8 +89,8 @@ def get_controllers():
     if count < 2:
         raise RuntimeError(f"Need 2 gamepads (ROV + Claw). Found {count}")
 
-    js0 = pygame.joystick.Joystick(0)
-    js1 = pygame.joystick.Joystick(1)
+    js0 = pygame.joystick.Joystick(1)
+    js1 = pygame.joystick.Joystick(0)
     js0.init()
     js1.init()
 

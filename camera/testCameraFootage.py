@@ -4,41 +4,49 @@ import configCamera as config
 
 app = Flask(__name__)
 
-# Create a list of 5 camera objects (IDs 0, 1, 2, 3, 4)
-caps = []
-for i in range(1):
-    caps.append(cv2.VideoCapture(i, config.backend))
+# Try config.backend first, fall back to CAP_DSHOW if nothing opens
+def try_open_cameras(backend):
+    found = []
+    for i in range(5):
+        cap = cv2.VideoCapture(i, backend)
+        if cap.isOpened():
+            found.append((i, cap))
+            print(f"Camera {i}: OK (backend={backend})")
+        else:
+            cap.release()
+            print(f"Camera {i}: Not found (backend={backend})")
+    return found
+
+caps = try_open_cameras(config.backend)
+
+if len(caps) == 0:
+    print("No cameras found with config.backend, retrying with CAP_DSHOW...")
+    caps = try_open_cameras(cv2.CAP_DSHOW)
+
+if len(caps) == 0:
+    print("No cameras found with CAP_DSHOW, retrying with CAP_MSMF...")
+    caps = try_open_cameras(cv2.CAP_MSMF)
 
 def generate_frames(index):
-    camera = caps[index]
+    cap = next((c for i, c in caps if i == index), None)
+    if cap is None:
+        return
     while True:
-        success, frame = camera.read()
+        success, frame = cap.read()
         if not success:
-            # If camera isn't plugged in, break or show a "No Signal" frame
             break
-        else:
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame_bytes = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        ret, buffer = cv2.imencode('.jpg', frame)
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
 
-# Create 5 routes dynamically
-@app.route('/cam0')
-def cam0(): return Response(generate_frames(0), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-@app.route('/cam1')
-def cam1(): return Response(generate_frames(1), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-@app.route('/cam2')
-def cam2(): return Response(generate_frames(2), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-@app.route('/cam3')
-def cam3(): return Response(generate_frames(3), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-@app.route('/cam4')
-def cam4(): return Response(generate_frames(4), mimetype='multipart/x-mixed-replace; boundary=frame')
+@app.route('/cam<int:index>')
+def video_feed(index):
+    valid_indices = [i for i, _ in caps]
+    if index not in valid_indices:
+        return f"Camera {index} not available. Connected cameras: {valid_indices}", 404
+    return Response(generate_frames(index), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == "__main__":
-    print("--- 5-CAMERA TEST STARTING ---")
-    print("URLs: http://127.0.0.1:5000/cam0 through /cam4")
+    print(f"--- CAMERA TEST STARTING ({len(caps)} camera(s) found) ---")
+    print("URLs: http://10.164.134.47:5000/cam0 through /cam4")
     app.run(host='0.0.0.0', port=5000, threaded=True)
