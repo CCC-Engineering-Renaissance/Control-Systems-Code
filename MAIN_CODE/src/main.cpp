@@ -5,6 +5,7 @@
 #include "PCA9685.h"
 #include "Thruster.h"
 #include "Thruster_Mixer.h"
+#include "Claw.h"
 #include "connection.h"
 #include "PID.h"
 
@@ -14,6 +15,14 @@ namespace {
   constexpr int   kStalePacketMs        = 250;
   constexpr float kMaxDt                = 0.1f;
   constexpr int   kArmDelayMs           = 500;
+
+  constexpr int kChClawRotate = 9;
+  constexpr int kChClawOpen   = 10;
+  constexpr int kChClawPitch  = 11;
+  constexpr int kClawRest     = 1500;
+  constexpr int kClawOffset   = 556;
+  constexpr int kClawMinUs    = 944;
+  constexpr int kClawMaxUs    = 2056;
 
   void signalHandler(int) {
     keepRunning = 0;
@@ -48,6 +57,13 @@ int main() {
   Thruster leftVertical2(6);
   Thruster rightVertical2(7);
 
+  Claw clawRotate(kChClawRotate, kClawRest, kClawOffset);
+  Claw clawOpen  (kChClawOpen,   kClawRest, kClawOffset);
+  Claw clawPitch (kChClawPitch,  kClawRest, kClawOffset);
+  clawRotate.setLimits(kClawMinUs, kClawMaxUs);
+  clawOpen.setLimits  (kClawMinUs, kClawMaxUs);
+  clawPitch.setLimits (kClawMinUs, kClawMaxUs);
+
   // Send neutral immediately so ESCs don't see garbage PWM on boot
   frontLeftHorizontal.stop(driver);
   frontRightHorizontal.stop(driver);
@@ -57,6 +73,9 @@ int main() {
   rightVertical.stop(driver);
   leftVertical2.stop(driver);
   rightVertical2.stop(driver);
+  clawRotate.center(driver);
+  clawOpen.center  (driver);
+  clawPitch.center (driver);
   std::cout << "All thrusters set to neutral, waiting for ESCs to arm...\n";
   std::this_thread::sleep_for(std::chrono::milliseconds(kArmDelayMs));
   std::cout << "ROV is ON\n";
@@ -78,6 +97,9 @@ int main() {
       rightVertical.stop(driver);
       leftVertical2.stop(driver);
       rightVertical2.stop(driver);
+      clawRotate.center(driver);
+      clawOpen.center  (driver);
+      clawPitch.center (driver);
       yawPID.reset();
       pitchPID.reset();
       rollPID.reset();
@@ -126,6 +148,10 @@ int main() {
     leftVertical2.setPower(output.leftVertical2,               driver);
     rightVertical2.setPower(output.rightVertical2,             driver);
 
+    clawRotate.setPosition(input.clawRotate, driver);
+    clawOpen.setPosition  (input.clawOpen,   driver);
+    clawPitch.setPosition (input.clawPitch,  driver);
+
     std::cout << "ROV running...                    \r";
     std::cout.flush();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -139,6 +165,9 @@ int main() {
   rightVertical.stop(driver);
   leftVertical2.stop(driver);
   rightVertical2.stop(driver);
+  clawRotate.center(driver);
+  clawOpen.center  (driver);
+  clawPitch.center (driver);
   net.detach();
   std::cout << "\nExiting safely.\n";
   return 0;
