@@ -14,9 +14,9 @@ namespace {
 
   constexpr int kChClaw   = 8;
   constexpr int kClawRest = 1500;
-  constexpr int kClawOffset = 556;
-  constexpr int kClawMinUs  = 944;
-  constexpr int kClawMaxUs  = 2056;
+  constexpr int kClawOffset = 100;
+  constexpr int kClawMinUs  = 500;
+  constexpr int kClawMaxUs  = 2500;
 
   void signalHandler(int) { keepRunning = 0; }
 }
