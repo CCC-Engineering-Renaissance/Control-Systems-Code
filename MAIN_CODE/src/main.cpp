@@ -16,9 +16,9 @@ namespace {
   constexpr float kMaxDt                = 0.1f;
   constexpr int   kArmDelayMs           = 500;
 
-  constexpr int kChClawRotate = 9;
-  constexpr int kChClawOpen   = 10;
-  constexpr int kChClawPitch  = 11;
+  constexpr int kChClawRotate = 8;
+  constexpr int kChClawOpen   = 9;
+  constexpr int kChClawPitch  = 10;
   constexpr int kClawRest     = 1500;
   constexpr int kClawOffset   = 556;
   constexpr int kClawMinUs    = 944;
