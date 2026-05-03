@@ -9,12 +9,7 @@
 #include "connection.h"
 #include "PID.h"
 
-// ─────────────────────────────────────────────
-//  HARDWARE CONFIG — set false for anything
-//  not physically connected
-// ─────────────────────────────────────────────
 namespace Config {
-  // Thrusters
   constexpr bool kFrontLeftHorizontal  = true;
   constexpr bool kFrontRightHorizontal = true;
   constexpr bool kRearLeftHorizontal   = true;
@@ -23,12 +18,9 @@ namespace Config {
   constexpr bool kRightVertical        = true;
   constexpr bool kLeftVertical2        = true;
   constexpr bool kRightVertical2       = true;
-
-  // Claw servos
   constexpr bool kClawRotate = true;
   constexpr bool kClawOpen   = true;
   constexpr bool kClawPitch  = true;
-
   constexpr bool kPID = true;
 }
 
@@ -43,12 +35,11 @@ namespace {
   constexpr int kChClawOpen   = 9;
   constexpr int kChClawPitch  = 10;
   constexpr int kClawRest     = 1500;
-  constexpr int kClawOffset   = 556;
+  constexpr int kClawOffset   = 900;
   constexpr int kClawMinUs    = 944;
   constexpr int kClawMaxUs    = 2056;
 
-  constexpr float kClawStep = 0.05f;  // position increment per 50ms tick
-                                       // 1.0 = full travel in ~1 second
+  constexpr float kClawStep = 0.05f;
 
   void signalHandler(int) { keepRunning = 0; }
 }
@@ -139,13 +130,10 @@ int main() {
 
   auto lastTime = std::chrono::steady_clock::now();
 
-  // Servo hold-to-move state
-  float clawRotatePos = 0.0f;   // current position [-1, 1]
+  // Servo position state
+  float clawRotatePos = 0.0f;
   float clawOpenPos   = 0.0f;
   float clawPitchPos  = 0.0f;
-  float clawRotateDir = 1.0f;   // travel direction, flips at limits
-  float clawOpenDir   = 1.0f;
-  float clawPitchDir  = 1.0f;
 
   while (keepRunning) {
     if (!is_Fresh(kStalePacketMs)) {
@@ -163,9 +151,7 @@ int main() {
       yawPID.reset();
       pitchPID.reset();
       rollPID.reset();
-      // Reset servo state to center
       clawRotatePos = clawOpenPos = clawPitchPos = 0.0f;
-      clawRotateDir = clawOpenDir = clawPitchDir = 1.0f;
       lastTime = std::chrono::steady_clock::now();
       std::cout << "Waiting for controller packets...\r";
       std::cout.flush();
@@ -180,51 +166,43 @@ int main() {
 
     const POVState input = get_State();
 
-    // ── Servo hold-to-move logic ──────────────────────────────────────
-    // While button held: move in current direction each tick
-    // On release: hold position (no update sent)
-    // At limit: clamp and flip direction for next press
+    // ── Claw servo hold-to-move ────────────────────────────────────────
+    // +1.0 = open button held | -1.0 = close button held | 0.0 = hold position
 
-    // X — clawRotate
-    if (input.clawRotate != 0.0f) {
-      clawRotatePos += kClawStep * clawRotateDir;
-      if (clawRotatePos >= 1.0f) {
-        clawRotatePos = 1.0f;
-        clawRotateDir = -1.0f;
-      } else if (clawRotatePos <= -1.0f) {
-        clawRotatePos = -1.0f;
-        clawRotateDir = 1.0f;
-      }
+    // X → open clawRotate | A → close clawRotate
+    if (input.clawRotate > 0.0f) {
+      clawRotatePos += kClawStep;
+      if (clawRotatePos >= 1.0f) clawRotatePos = 1.0f;
+      setPosClaw(Config::kClawRotate, clawRotate, clawRotatePos, driver);
+    } else if (input.clawRotate < 0.0f) {
+      clawRotatePos -= kClawStep;
+      if (clawRotatePos <= -1.0f) clawRotatePos = -1.0f;
       setPosClaw(Config::kClawRotate, clawRotate, clawRotatePos, driver);
     }
 
-    // Y — clawOpen
-    if (input.clawOpen != 0.0f) {
-      clawOpenPos += kClawStep * clawOpenDir;
-      if (clawOpenPos >= 1.0f) {
-        clawOpenPos = 1.0f;
-        clawOpenDir = -1.0f;
-      } else if (clawOpenPos <= -1.0f) {
-        clawOpenPos = -1.0f;
-        clawOpenDir = 1.0f;
-      }
+    // Y → open clawOpen | B → close clawOpen
+    if (input.clawOpen > 0.0f) {
+      clawOpenPos += kClawStep;
+      if (clawOpenPos >= 1.0f) clawOpenPos = 1.0f;
+      setPosClaw(Config::kClawOpen, clawOpenServo, clawOpenPos, driver);
+    } else if (input.clawOpen < 0.0f) {
+      clawOpenPos -= kClawStep;
+      if (clawOpenPos <= -1.0f) clawOpenPos = -1.0f;
       setPosClaw(Config::kClawOpen, clawOpenServo, clawOpenPos, driver);
     }
 
-    // B — clawPitch
-    if (input.clawPitch != 0.0f) {
-      clawPitchPos += kClawStep * clawPitchDir;
-      if (clawPitchPos >= 1.0f) {
-        clawPitchPos = 1.0f;
-        clawPitchDir = -1.0f;
-      } else if (clawPitchPos <= -1.0f) {
-        clawPitchPos = -1.0f;
-        clawPitchDir = 1.0f;
-      }
+    // LB → open clawPitch | LT → close clawPitch
+    if (input.clawPitch > 0.0f) {
+      clawPitchPos += kClawStep;
+      if (clawPitchPos >= 1.0f) clawPitchPos = 1.0f;
+      setPosClaw(Config::kClawPitch, clawPitch, clawPitchPos, driver);
+    } else if (input.clawPitch < 0.0f) {
+      clawPitchPos -= kClawStep;
+      if (clawPitchPos <= -1.0f) clawPitchPos = -1.0f;
       setPosClaw(Config::kClawPitch, clawPitch, clawPitchPos, driver);
     }
 
-    // ── Thrusters ─────────────────────────────────────────────────────
+    // ── Thrusters ──────────────────────────────────────────────────────
     float measuredPitch = 0.0f;
     float measuredYaw   = 0.0f;
     float measuredRoll  = 0.0f;
