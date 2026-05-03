@@ -63,7 +63,7 @@ int main() {
 
     // --- A button toggle (rising-edge detection) ---
     // Change `input.buttonA` to match your actual POVState field name
-    const bool currButtonA = input.buttonA;
+    const bool currButtonA = input.clawOpen;
     if (currButtonA && !prevButtonA) {
       clawOpen = !clawOpen;
       const int targetUs = clawOpen ? kClawOpen : kClawClosed;
