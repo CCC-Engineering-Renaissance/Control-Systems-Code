@@ -13,7 +13,7 @@ namespace {
   constexpr int   kArmDelayMs         = 500;
 
   constexpr int kChClaw   = 8;
-  constexpr int kClawRest = 1500;
+  constexpr int kClawRest = 500;
   constexpr int kClawOffset = 50000;
   constexpr int kClawMinUs  = 500;
   constexpr int kClawMaxUs  = 2500;
@@ -37,14 +37,12 @@ int main() {
 
   Claw servo(kChClaw, kClawRest, kClawOffset);
   servo.setLimits(kClawMinUs, kClawMaxUs);
-  servo.center(driver);
   std::cout << "Servo centered, waiting for ESC arm...\n";
   std::this_thread::sleep_for(std::chrono::milliseconds(kArmDelayMs));
   std::cout << "Ready\n";
 
   while (keepRunning) {
     if (!is_Fresh(kStalePacketMs)) {
-      servo.center(driver);
       std::cout << "Waiting for packets...\r";
       std::cout.flush();
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
