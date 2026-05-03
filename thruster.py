@@ -142,7 +142,6 @@ def main():
                 yawAngle -= 360
 
             # ── ROV speed scale ───────────────────────────────────────
-            # A = normal, B = slow, X = fast (default 0.5)
             scale = 0.5
             if joyROV.A == 1:
                 scale = 1.0
@@ -162,16 +161,15 @@ def main():
             rjx = joyROV.axis("RightJoystickX",  dz=0.10, factor=0.2)
 
             # ── Claw controller ───────────────────────────────────────
-            # X = hold to rotate claw
-            # Y = hold to open/close claw
-            # B = hold to pitch claw
-            # Left Stick Y = second claw
+            # X = open clawRotate,  A = close clawRotate
+            # Y = open clawOpen,    B = close clawOpen
+            # LB = open clawPitch,  LT = close clawPitch
             claw_ljy = joyClaw.axis("LeftJoystickY", dz=0.10, factor=0.2)
 
-            clawRotate = int(joyClaw.X)   # POVState.clawRotate — X button
-            clawOpen   = int(joyClaw.Y)   # POVState.clawOpen   — Y button
-            clawPitch  = int(joyClaw.B)   # POVState.clawPitch  — B button
-            claw1Open  = (claw_ljy ** 3) * -0.25  # POVState.claw1Open — analog
+            clawRotate = int(joyClaw.X) - int(joyClaw.A)
+            clawOpen   = int(joyClaw.Y) - int(joyClaw.B)
+            clawPitch  = int(joyClaw.LeftBumper) - int(joyClaw.axis("LeftTrigger", dz=0.05) > 0.1)
+            claw1Open  = (claw_ljy ** 3) * -0.25
 
             msg = (
                 f"{ljy * scale * 1.5} "
@@ -201,9 +199,9 @@ def main():
                     f"Yaw: {rjx * 0.66 * scale * -2:.2f}",
                     f"Pitch: {rjy * 0.66 * scale * 2:.2f}",
                     f"Roll: {joyROV.RightBumper - joyROV.LeftBumper}",
-                    f"ClawRotate(X): {clawRotate}",
-                    f"ClawOpen(Y): {clawOpen}",
-                    f"ClawPitch(B): {clawPitch}",
+                    f"ClawRotate(X/A): {clawRotate}",
+                    f"ClawOpen(Y/B): {clawOpen}",
+                    f"ClawPitch(LB/LT): {clawPitch}",
                     f"Claw1Open: {claw1Open:.2f}",
                     f"PitchAngle: {pitchAngle:.1f}",
                     f"YawAngle: {yawAngle:.1f}",
