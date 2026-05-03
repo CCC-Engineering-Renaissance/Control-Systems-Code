@@ -39,7 +39,7 @@ int main() {
   Claw servo1(kChClaw,  kClawRest, kClawOffset);
   //Claw servo2(kChClaw2, kClawRest, kClawOffset);
   servo1.setLimits(kClawMinUs, kClawMaxUs);
-  servo2.setLimits(kClawMinUs, kClawMaxUs);
+  //servo2.setLimits(kClawMinUs, kClawMaxUs);
   servo1.center(driver);
  // servo2.center(driver);
 
