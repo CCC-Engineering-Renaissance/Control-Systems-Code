@@ -102,12 +102,12 @@ int main() {
 
   Thruster frontLeftHorizontal(0);
   Thruster frontRightHorizontal(1);
-  Thruster rearLeftHorizontal(2);
-  Thruster rearRightHorizontal(3);
-  Thruster leftVertical(4);
-  Thruster rightVertical(5);
-  Thruster leftVertical2(6);
-  Thruster rightVertical2(7);
+  Thruster leftVertical(2);
+  Thruster rightVertical(3);
+  Thruster leftVertical2(4);
+  Thruster rightVertical2(5);
+  Thruster rearLeftHorizontal(6);
+  Thruster rearRightHorizontal(7);
 
   Claw clawRotate   (kChClawRotate, kClawRest, kClawOffset);
   Claw clawOpenServo(kChClawOpen,   kClawRest, kClawOffset);
