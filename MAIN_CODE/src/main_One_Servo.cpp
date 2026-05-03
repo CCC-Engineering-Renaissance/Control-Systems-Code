@@ -13,11 +13,11 @@ namespace {
   constexpr int   kArmDelayMs           = 500;
   constexpr int kChClaw     = 8;
   constexpr int kClawRest   = 1500;
-  constexpr int kClawOffset  = 50000;
-  constexpr int kClawMinUs   = 500;
-  constexpr int kClawMaxUs   = 2500;
-  constexpr int kClawOpen    = kClawRest + kClawOffset;
-  constexpr int kClawClosed  = kClawRest - kClawOffset;
+  constexpr int kClawOffset = 100;
+  constexpr int kClawMinUs  = 500;
+  constexpr int kClawMaxUs  = 2500;
+  constexpr int kClawOpen   = 2000;  // tune to your servo
+  constexpr int kClawClosed = 1000;  // tune to your servo
   void signalHandler(int) { keepRunning = 0; }
 }
 
@@ -37,7 +37,7 @@ int main() {
 
   Claw servo(kChClaw, kClawRest, kClawOffset);
   servo.setLimits(kClawMinUs, kClawMaxUs);
-  servo.center(driver);  // fixed
+  servo.center(driver);
 
   std::cout << "Servo centered, waiting for ESC arm...\n";
   std::this_thread::sleep_for(std::chrono::milliseconds(kArmDelayMs));
@@ -48,7 +48,7 @@ int main() {
 
   while (keepRunning) {
     if (!is_Fresh(kStalePacketMs)) {
-      servo.center(driver);  // fixed
+      servo.center(driver);
       std::cout << "Waiting for packets...\r";
       std::cout.flush();
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -62,7 +62,7 @@ int main() {
     if (currButtonA && !prevButtonA) {
       clawOpen = !clawOpen;
       const int targetUs = clawOpen ? kClawOpen : kClawClosed;
-      servo.setPosition(targetUs, driver);
+      servo.setPWM(targetUs, driver);  // fixed: was setPosition (normalized), now setPWM (microseconds)
       std::cout << "Claw " << (clawOpen ? "OPEN" : "CLOSED") << "        \n";
     }
     prevButtonA = currButtonA;
@@ -72,7 +72,7 @@ int main() {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 
-  servo.center(driver);  // fixed
+  servo.center(driver);
   net.detach();
   std::cout << "\nExiting safely.\n";
   return 0;
