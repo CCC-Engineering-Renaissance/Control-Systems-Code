@@ -16,7 +16,7 @@ namespace {
 	constexpr int kMaxPin = 15;
 
 	inline double us_to_ms(int us) {
-		return static_cast<double>(us) / 1000.0
+		return static_cast<double>(us) / 1000.0;
 	}
 }
 
@@ -32,7 +32,7 @@ int Thruster::clampPWM(int pwm_us) const {
 	const int safe_min = std::max(min_us, rest - offset);
 	const int safe_max = std::min(max_us, rest + offset);
 
-	return std::clamped(pwm_us, safe_min, safe_max);
+	return std::clamp(pwm_us, safe_min, safe_max);
 }
 
 // Slew limiter (prevents sudden jumps)
