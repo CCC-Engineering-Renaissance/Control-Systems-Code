@@ -123,6 +123,12 @@ int main() {
   std::this_thread::sleep_for(std::chrono::milliseconds(kArmDelayMs));
   std::cout << "ROV is ON\n";
 
+  // ── Network interface debug ───────────────────────────────────────────
+  std::cout << "── Network interfaces ───────────────\n";
+  std::system("ip -brief addr show | grep -E 'eth0|wlan0|end0' || echo '  No eth/wlan interfaces found'");
+  std::cout << "── UDP socket bound on port " << kPort << " ──\n";
+  std::cout << "─────────────────────────────────────\n";
+
   Thruster_Mixer mixer;
   PID yawPID  (0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
   PID pitchPID(0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
