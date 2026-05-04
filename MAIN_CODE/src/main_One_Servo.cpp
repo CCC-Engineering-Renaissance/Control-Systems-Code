@@ -27,7 +27,7 @@ namespace Config {
 namespace {
   volatile std::sig_atomic_t keepRunning = 1;
   constexpr unsigned short kPort        = 5005;
-  constexpr int   kStalePacketMs        = 250;
+  constexpr int   kStalePacketMs        = 500;  // raised from 250 — Windows timer jitter can cause gaps
   constexpr float kMaxDt                = 0.1f;
   constexpr int   kArmDelayMs           = 500;
 
