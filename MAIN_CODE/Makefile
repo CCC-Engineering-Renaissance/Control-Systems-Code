@@ -5,8 +5,8 @@ CXXFLAGS := -std=c++17 -g -O0 -Wall -Wextra -pthread
 INCLUDES := -I./include
 LIBS     := -lboost_system -li2c
 
-ROV_OBJS       := out/main.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o
-ONE_SERVO_OBJS := out/main_One_Servo.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o
+ROV_OBJS       := out/main.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o/spinClaw.o
+ONE_SERVO_OBJS := out/main_One_Servo.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o/spinClaw.o
 
 all: out $(TARGET) $(TARGET_ONE)
 
@@ -41,6 +41,9 @@ out/PCA9685.o: src/PCA9685.cpp include/PCA9685.h include/I2CPeripheral.h include
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 out/I2CPeripheral.o: src/I2CPeripheral.cpp include/I2CPeripheral.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+out/spinClaw.o: src/spinClaw.cpp include/Thruster.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 out:
