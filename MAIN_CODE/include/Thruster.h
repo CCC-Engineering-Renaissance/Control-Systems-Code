@@ -10,6 +10,7 @@ private:
   bool isCorrectPin(int p) const;
   int clampPWM(int pwm_us) const;
   double clampPower(double power) const;
+  int applySlew(int target) const;
 
 private:
   int pin;
