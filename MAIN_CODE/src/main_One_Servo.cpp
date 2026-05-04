@@ -229,7 +229,7 @@ int main() {
               << " RV=" << output.rightVertical
               << " LV2=" << output.leftVertical2
               << " RV2=" << output.rightVertical2
-              << "    \r";
+              << "    \n";
     std::cout.flush();
 
     setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  output.frontLeftHorizontal,  driver);
