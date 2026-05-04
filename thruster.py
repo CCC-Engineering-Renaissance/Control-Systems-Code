@@ -80,23 +80,45 @@ class XboxController:
     @property
     def RightBumper(self): return self.js.get_button(BTN_RB)
 
+
 def get_controllers():
     pygame.init()
     pygame.joystick.init()
 
+    # Create a real window so Windows doesn't kill the process
+    # and so pygame captures controller input instead of the OS
+    pygame.display.set_mode((300, 100))
+    pygame.display.set_caption("ROV Control - Running")
+
     count = pygame.joystick.get_count()
     if count < 2:
-        raise RuntimeError(f"Need 2 gamepads (ROV + Claw). Found {count}")
+        raise RuntimeError(f"Need 2 gamepads (ROV + Claw). Found {count}. Make sure both are plugged in before starting.")
 
-    js0 = pygame.joystick.Joystick(1)
-    js1 = pygame.joystick.Joystick(0)
-    js0.init()
-    js1.init()
+    print("Available controllers:")
+    joysticks = []
+    for i in range(count):
+        js = pygame.joystick.Joystick(i)
+        js.init()
+        print(f"  [{i}] {js.get_name()}")
+        joysticks.append(js)
 
-    print("ROV controller:",  js0.get_name())
-    print("Claw controller:", js1.get_name())
+    # Let the user pick which controller is which
+    try:
+        rov_idx  = int(input("Select ROV controller index: "))
+        claw_idx = int(input("Select Claw controller index: "))
+    except ValueError:
+        raise RuntimeError("Invalid controller index entered.")
 
-    return XboxController(js0), XboxController(js1)
+    if rov_idx == claw_idx:
+        raise RuntimeError("ROV and Claw controllers must be different indices.")
+    if rov_idx >= count or claw_idx >= count:
+        raise RuntimeError("Controller index out of range.")
+
+    print(f"ROV controller:  {joysticks[rov_idx].get_name()}")
+    print(f"Claw controller: {joysticks[claw_idx].get_name()}")
+
+    return XboxController(joysticks[rov_idx]), XboxController(joysticks[claw_idx])
+
 
 def main():
     joyROV, joyClaw = get_controllers()
@@ -111,9 +133,18 @@ def main():
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         print(f"Sending to {PI_IP}:{PORT}")
+        print("Press ESC or close the window to stop.")
 
         while True:
+            # ── Drain the event queue every loop (fixes Windows freeze/crash) ──
             pygame.event.pump()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    print("\nWindow closed. Exiting.")
+                    return
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    print("\nESC pressed. Exiting.")
+                    return
 
             # ── ALS angle accumulation (ROV right stick) ──────────────
             rjy_raw = joyROV._get_axis_raw("RightJoystickY")
@@ -161,9 +192,6 @@ def main():
             rjx = joyROV.axis("RightJoystickX",  dz=0.10, factor=0.2)
 
             # ── Claw controller ───────────────────────────────────────
-            # X = open clawRotate,  A = close clawRotate
-            # Y = open clawOpen,    B = close clawOpen
-            # LB = open clawPitch,  LT = close clawPitch
             claw_ljy = joyClaw.axis("LeftJoystickY", dz=0.10, factor=0.2)
 
             clawRotate = int(joyClaw.X) - int(joyClaw.A)
@@ -210,9 +238,15 @@ def main():
 
             time.sleep(0.001)
 
+
 if __name__ == "__main__":
     try:
         main()
+    except KeyboardInterrupt:
+        print("\nStopped by user.")
     except Exception as exc:
-        print(f"thruster.py error: {exc}", file=sys.stderr)
+        print(f"\nthruster.py error: {exc}", file=sys.stderr)
+        input("Press Enter to exit...")  # keeps PowerShell open so you can read the error
         raise SystemExit(1)
+    finally:
+        pygame.quit()
