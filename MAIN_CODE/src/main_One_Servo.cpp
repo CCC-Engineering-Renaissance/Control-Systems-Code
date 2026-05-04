@@ -224,6 +224,14 @@ int main() {
     const Thruster_Outputs output =
         mixer.mix(input, yawPIDOutput, pitchPIDOutput, rollPIDOutput);
 
+    std::cout << "V=" << input.vertical
+              << " LV=" << output.leftVertical
+              << " RV=" << output.rightVertical
+              << " LV2=" << output.leftVertical2
+              << " RV2=" << output.rightVertical2
+              << "    \r";
+    std::cout.flush();
+
     setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  output.frontLeftHorizontal,  driver);
     setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, output.frontRightHorizontal, driver);
     setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   output.rearLeftHorizontal,   driver);
@@ -233,11 +241,6 @@ int main() {
     setPowerThruster(Config::kLeftVertical2,        leftVertical2,        output.leftVertical2,        driver);
     setPowerThruster(Config::kRightVertical2,       rightVertical2,       output.rightVertical2,       driver);
 
-    std::cout << "ROV running | ClawR=" << clawRotatePos
-              << " ClawO=" << clawOpenPos
-              << " ClawP=" << clawPitchPos
-              << "    \r";
-    std::cout.flush();
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
   }
 
