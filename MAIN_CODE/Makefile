@@ -50,6 +50,9 @@ out/PCA9685.o: src/PCA9685.cpp include/PCA9685.h include/I2CPeripheral.h include
 out/I2CPeripheral.o: src/I2CPeripheral.cpp include/I2CPeripheral.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
+out/spinClaw.o: src/spinClaw.cpp include/Thruster.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
 out:
 	mkdir -p out
 
