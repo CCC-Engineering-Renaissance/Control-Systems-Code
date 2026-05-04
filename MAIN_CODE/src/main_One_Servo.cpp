@@ -29,7 +29,7 @@ namespace {
   constexpr unsigned short kPort        = 5005;
   constexpr int   kStalePacketMs        = 500;  // raised from 250 — Windows timer jitter can cause gaps
   constexpr float kMaxDt                = 0.1f;
-  constexpr int   kArmDelayMs           = 500;
+  constexpr int   kArmDelayMs           = 3000;  // raised from 500 — ESCs need ~2-3s at neutral to arm
 
   constexpr int kChClawRotate = 8;
   constexpr int kChClawOpen   = 9;
