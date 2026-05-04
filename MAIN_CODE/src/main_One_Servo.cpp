@@ -18,9 +18,9 @@ namespace Config {
   constexpr bool kRightVertical        = true;
   constexpr bool kLeftVertical2        = true;
   constexpr bool kRightVertical2       = true;
-  constexpr bool kClawRotate = true;
-  constexpr bool kClawOpen   = true;
-  constexpr bool kClawPitch  = true;
+  constexpr bool kClawRotate = false;
+  constexpr bool kClawOpen   = false;
+  constexpr bool kClawPitch  = false;
   constexpr bool kPID = true;
 }
 
