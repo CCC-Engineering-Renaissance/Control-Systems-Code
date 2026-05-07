@@ -65,22 +65,22 @@ int Thruster::clampPWM(int pwm_us) const {
 Thruster::Thruster()
   : pin(-1),          // -1 means "invalid/unassigned" until you construct with a real pin
     rest(1500),       // typical ESC neutral pulse width (us)
-    offset(400),      // typical max deviation around neutral (us)
+    offset(312),      // max deviation around neutral: 1500 ± 312 = [1188, 1812]
     pwm(1500),        // start at neutral so state is safe by default
     power(0.0f),      // normalized power at neutral
-    min_us(1100),     // conservative ESC low safety limit (adjust per ESC/thruster)
-    max_us(1900) {    // conservative ESC high safety limit
+    min_us(1188),     // ESC low safety limit
+    max_us(1812) {    // ESC high safety limit
   // No hardware action here; constructors should not talk to the driver.
 }
 
 Thruster::Thruster(int pin_in)
   : pin(pin_in),
     rest(1500),
-    offset(400),
+    offset(312),
     pwm(1500),
     power(0.0f),
-    min_us(1100),
-    max_us(1900) {
+    min_us(1188),
+    max_us(1812) {
   // Fail fast if the channel is invalid.
   if (!isCorrectPin(pin)) {
     throw std::invalid_argument("Thruster pin must be in [0,15]");
@@ -90,11 +90,11 @@ Thruster::Thruster(int pin_in)
 Thruster::Thruster(int pin_in, int rest_in)
   : pin(pin_in),
     rest(rest_in),
-    offset(400),
+    offset(312),
     pwm(rest_in),     // start at the configured neutral
     power(0.0f),
-    min_us(1100),
-    max_us(1900) {
+    min_us(1188),
+    max_us(1812) {
   if (!isCorrectPin(pin)) {
     throw std::invalid_argument("Thruster pin must be in [0,15]");
   }
@@ -108,8 +108,8 @@ Thruster::Thruster(int pin_in, int rest_in, int offset_in)
     offset(std::max(0, offset_in)), // prevent negative offset (nonsensical)
     pwm(rest_in),
     power(0.0f),
-    min_us(1100),
-    max_us(1900) {
+    min_us(1188),
+    max_us(1812) {
   if (!isCorrectPin(pin)) {
     throw std::invalid_argument("Thruster pin must be in [0,15]");
   }
