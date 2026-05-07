@@ -6,7 +6,7 @@ import pygame
 
 PI_IP = "192.168.8.128"
 PORT = 5005
-SEND_HZ = 20
+SEND_HZ = 30
 
 # Xbox-style button mapping
 BTN_A     = 0
@@ -30,18 +30,27 @@ def apply_deadzone(value, dz=0.05):
     return sign * (abs(value) - dz) / (1.0 - dz)
 
 def smooth(prev, new, factor=0.2):
-    return prev * (1.0 - factor) + new * factor
+    result = prev * (1.0 - factor) + new * factor
+    # Snap to zero to prevent infinite creep after releasing sticks
+    if abs(result) < 0.001:
+        result = 0.0
+    return result
 
 class XboxController:
     def __init__(self, joystick: pygame.joystick.Joystick):
         self.js = joystick
+        # Prime triggers with actual hardware state at startup.
+        # On some Windows drivers, triggers report 0.0 at rest instead of -1.0,
+        # which makes (0.0 + 1.0) / 2.0 = 0.5 — causing a false 0.66 vertical output.
+        lt_init = (self.js.get_axis(4) + 1.0) / 2.0
+        rt_init = (self.js.get_axis(5) + 1.0) / 2.0
         self.filtered = {
             "LeftJoystickX":  0.0,
             "LeftJoystickY":  0.0,
             "RightJoystickX": 0.0,
             "RightJoystickY": 0.0,
-            "LeftTrigger":    0.0,
-            "RightTrigger":   0.0,
+            "LeftTrigger":    lt_init,
+            "RightTrigger":   rt_init,
         }
 
     def _get_axis_raw(self, name: str) -> float:
@@ -50,11 +59,11 @@ class XboxController:
         if name == "LeftJoystickY":
             return -self.js.get_axis(1)
         if name == "RightJoystickX":
-            return self.js.get_axis(3)
+            return self.js.get_axis(2)
         if name == "RightJoystickY":
-            return -self.js.get_axis(4)
+            return -self.js.get_axis(3)
         if name == "LeftTrigger":
-            return (self.js.get_axis(2) + 1.0) / 2.0
+            return (self.js.get_axis(4) + 1.0) / 2.0
         if name == "RightTrigger":
             return (self.js.get_axis(5) + 1.0) / 2.0
         return 0.0
@@ -80,23 +89,45 @@ class XboxController:
     @property
     def RightBumper(self): return self.js.get_button(BTN_RB)
 
+
 def get_controllers():
     pygame.init()
     pygame.joystick.init()
 
+    # Create a real window so Windows doesn't kill the process
+    # and so pygame captures controller input instead of the OS
+    pygame.display.set_mode((300, 100))
+    pygame.display.set_caption("ROV Control - Running")
+
     count = pygame.joystick.get_count()
     if count < 2:
-        raise RuntimeError(f"Need 2 gamepads (ROV + Claw). Found {count}")
+        raise RuntimeError(f"Need 2 gamepads (ROV + Claw). Found {count}. Make sure both are plugged in before starting.")
 
-    js0 = pygame.joystick.Joystick(1)
-    js1 = pygame.joystick.Joystick(0)
-    js0.init()
-    js1.init()
+    print("Available controllers:")
+    joysticks = []
+    for i in range(count):
+        js = pygame.joystick.Joystick(i)
+        js.init()
+        print(f"  [{i}] {js.get_name()}")
+        joysticks.append(js)
 
-    print("ROV controller:",  js0.get_name())
-    print("Claw controller:", js1.get_name())
+    # Let the user pick which controller is which
+    try:
+        rov_idx  = int(input("Select ROV controller index: "))
+        claw_idx = int(input("Select Claw controller index: "))
+    except ValueError:
+        raise RuntimeError("Invalid controller index entered.")
 
-    return XboxController(js0), XboxController(js1)
+    if rov_idx == claw_idx:
+        raise RuntimeError("ROV and Claw controllers must be different indices.")
+    if rov_idx >= count or claw_idx >= count:
+        raise RuntimeError("Controller index out of range.")
+
+    print(f"ROV controller:  {joysticks[rov_idx].get_name()}")
+    print(f"Claw controller: {joysticks[claw_idx].get_name()}")
+
+    return XboxController(joysticks[rov_idx]), XboxController(joysticks[claw_idx])
+
 
 def main():
     joyROV, joyClaw = get_controllers()
@@ -111,9 +142,18 @@ def main():
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         print(f"Sending to {PI_IP}:{PORT}")
+        print("Press ESC or close the window to stop.")
 
         while True:
+            # ── Drain the event queue every loop (fixes Windows freeze/crash) ──
             pygame.event.pump()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    print("\nWindow closed. Exiting.")
+                    return
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    print("\nESC pressed. Exiting.")
+                    return
 
             # ── ALS angle accumulation (ROV right stick) ──────────────
             rjy_raw = joyROV._get_axis_raw("RightJoystickY")
@@ -153,17 +193,14 @@ def main():
             out = 1 if als else 0
 
             # ── ROV axes ──────────────────────────────────────────────
-            ljy = joyROV.axis("LeftJoystickY",  dz=0.10, factor=0.2)
-            ljx = joyROV.axis("LeftJoystickX",  dz=0.10, factor=0.2)
-            lt  = joyROV.axis("LeftTrigger",     dz=0.05, factor=0.2)
-            rt  = joyROV.axis("RightTrigger",    dz=0.05, factor=0.2)
-            rjy = joyROV.axis("RightJoystickY",  dz=0.10, factor=0.2)
-            rjx = joyROV.axis("RightJoystickX",  dz=0.10, factor=0.2)
+            ljy = joyROV.axis("LeftJoystickY",  dz=0.10, factor=0.5)
+            ljx = joyROV.axis("LeftJoystickX",  dz=0.10, factor=0.5)
+            lt  = joyROV.axis("LeftTrigger",     dz=0.05, factor=0.5)
+            rt  = joyROV.axis("RightTrigger",    dz=0.05, factor=0.5)
+            rjy = joyROV.axis("RightJoystickY",  dz=0.10, factor=0.5)
+            rjx = joyROV.axis("RightJoystickX",  dz=0.10, factor=0.5)
 
             # ── Claw controller ───────────────────────────────────────
-            # X = open clawRotate,  A = close clawRotate
-            # Y = open clawOpen,    B = close clawOpen
-            # LB = open clawPitch,  LT = close clawPitch
             claw_ljy = joyClaw.axis("LeftJoystickY", dz=0.10, factor=0.2)
 
             clawRotate = int(joyClaw.X) - int(joyClaw.A)
@@ -171,10 +208,15 @@ def main():
             clawPitch  = int(joyClaw.LeftBumper) - int(joyClaw.axis("LeftTrigger", dz=0.05) > 0.1)
             claw1Open  = (claw_ljy ** 3) * -0.25
 
+            # Vertical: clamp residual trigger noise to zero
+            vert = (rt - lt) / -3.0 * scale
+            if abs(vert) < 0.05:
+                vert = 0.0
+
             msg = (
                 f"{ljy * scale * 1.5} "
                 f"{ljx * scale * -1} "
-                f"{(rt - lt) / -3.0 * scale} "
+                f"{vert} "
                 f"{rjx * 0.66 * scale * -2} "
                 f"{rjy * 0.66 * scale * 2} "
                 f"{(joyROV.RightBumper - joyROV.LeftBumper) * scale} "
@@ -195,7 +237,7 @@ def main():
                 print(
                     f"Fwd: {ljy * scale * 1.5:.2f}",
                     f"Strafe: {ljx * scale * -1:.2f}",
-                    f"Vert: {(rt - lt) / -3.0 * scale:.2f}",
+                    f"Vert: {vert:.2f}",
                     f"Yaw: {rjx * 0.66 * scale * -2:.2f}",
                     f"Pitch: {rjy * 0.66 * scale * 2:.2f}",
                     f"Roll: {joyROV.RightBumper - joyROV.LeftBumper}",
@@ -210,9 +252,15 @@ def main():
 
             time.sleep(0.001)
 
+
 if __name__ == "__main__":
     try:
         main()
+    except KeyboardInterrupt:
+        print("\nStopped by user.")
     except Exception as exc:
-        print(f"thruster.py error: {exc}", file=sys.stderr)
+        print(f"\nthruster.py error: {exc}", file=sys.stderr)
+        input("Press Enter to exit...")  # keeps PowerShell open so you can read the error
         raise SystemExit(1)
+    finally:
+        pygame.quit()

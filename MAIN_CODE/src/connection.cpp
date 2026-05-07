@@ -9,6 +9,8 @@
 
 using boost::asio::ip::udp;
 
+static boost::asio::io_context io_context;
+
 POVState state{};
 
 // Mutex protects both "state" and "last_packet" so reads/writes can't interleave.
@@ -61,6 +63,10 @@ void set_State(const POVState& s){
 
 }
 
+void stopServer() {
+  io_context.stop();
+}
+
 //        UDP RECEIVER
 
 
@@ -68,7 +74,6 @@ void server(unsigned short port){
 
   try {
 
-    boost::asio::io_context io_context;
     udp::socket sock(io_context, udp::endpoint(udp::v4(), port));
      
     for(;;) {

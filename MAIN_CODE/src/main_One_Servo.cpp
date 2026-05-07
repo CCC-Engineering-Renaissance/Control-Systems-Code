@@ -32,9 +32,13 @@ namespace Config {
 namespace {
   volatile std::sig_atomic_t keepRunning = 1;
   constexpr unsigned short kPort        = 5005;
-  constexpr int   kStalePacketMs        = 250;
+  constexpr int   kStalePacketMs        = 500;  // raised from 250 — Windows timer jitter can cause gaps
   constexpr float kMaxDt                = 0.1f;
+<<<<<<< HEAD
   constexpr int   kArmDelayMs           = 2000;
+=======
+  constexpr int   kArmDelayMs           = 3000;  // raised from 500 — ESCs need ~2-3s at neutral to arm
+>>>>>>> bd6bbfd75d16c38c28a795b5672ecb75b6ddb8e3
 
   constexpr int kChClawRotate = 8;
   constexpr int kChClawOpen   = 9;
@@ -174,9 +178,17 @@ int main() {
   std::this_thread::sleep_for(std::chrono::milliseconds(kArmDelayMs));
   std::cout << "ROV is ON\n";
 
+<<<<<<< HEAD
   if (Config::kClawTest && Config::kClawRotate) {
     spinClaw(clawRotateThruster, driver);
   }
+=======
+  // ── Network interface debug ───────────────────────────────────────────
+  std::cout << "── Network interfaces ───────────────\n";
+  std::system("ip -brief addr show | grep -E 'eth0|wlan0|end0' || echo '  No eth/wlan interfaces found'");
+  std::cout << "── UDP socket bound on port " << kPort << " ──\n";
+  std::cout << "─────────────────────────────────────\n";
+>>>>>>> bd6bbfd75d16c38c28a795b5672ecb75b6ddb8e3
 
   Thruster_Mixer mixer;
   PID yawPID  (0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
@@ -285,6 +297,14 @@ int main() {
     const Thruster_Outputs output =
         mixer.mix(mixInput, yawPIDOutput, pitchPIDOutput, rollPIDOutput);
 
+    std::cout << "V=" << input.vertical
+              << " LV=" << output.leftVertical
+              << " RV=" << output.rightVertical
+              << " LV2=" << output.leftVertical2
+              << " RV2=" << output.rightVertical2
+              << "    \n";
+    std::cout.flush();
+
     setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  output.frontLeftHorizontal,  driver);
     setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, output.frontRightHorizontal, driver);
     setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   output.rearLeftHorizontal,   driver);
@@ -294,6 +314,7 @@ int main() {
     setPowerThruster(Config::kLeftVertical2,        leftVertical2,        output.leftVertical2,        driver);
     setPowerThruster(Config::kRightVertical2,       rightVertical2,       output.rightVertical2,       driver);
 
+<<<<<<< HEAD
     std::cout << "ROV running | ClawR=" << input.clawRotate
               << " ClawO=" << input.clawOpen
               << " ClawP=" << clawPitchPos
@@ -301,6 +322,9 @@ int main() {
               << "    \r";
     std::cout.flush();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
+=======
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+>>>>>>> bd6bbfd75d16c38c28a795b5672ecb75b6ddb8e3
   }
   } catch (const std::exception& e) {
     std::cerr << "\nControl loop exception: " << e.what() << "\n";
