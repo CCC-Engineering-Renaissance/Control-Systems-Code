@@ -11,26 +11,7 @@
 #include "PID.h"
 #include "IMU.h"
 
-// Apply a center + outer deadzone with linear rescaling.
-// Values within kDeadzoneCenter of 0 → 0 (prevents stick drift).
-// Values within kDeadzoneOuter of ±1 → ±1 (snaps to full deflection).
-// The remaining range is rescaled to fill [0, 1] so there's no dead step.
-static float applyDeadzone(float v, float centerDZ, float outerDZ) {
-  const float absV = v < 0.0f ? -v : v;
-  if (absV < centerDZ) return 0.0f;
-  if (absV > 1.0f - outerDZ) return v < 0.0f ? -1.0f : 1.0f;
-  const float span = 1.0f - outerDZ - centerDZ;
-  const float scaled = (absV - centerDZ) / span;
-  return v < 0.0f ? -scaled : scaled;
-}
-
 namespace Config {
-  // Joystick deadzone thresholds (fraction of full travel, 0–1).
-  // Center: stick drift near neutral is ignored.
-  // Outer:  near-max deflection snaps to full output.
-  constexpr float kDeadzoneCenter = 0.05f;
-  constexpr float kDeadzoneOuter  = 0.05f;
-
   constexpr bool kFrontLeftHorizontal  = true;
   constexpr bool kFrontRightHorizontal = true;
   constexpr bool kRearLeftHorizontal   = true;
@@ -256,19 +237,7 @@ int main() {
     lastTime  = now;
     dt        = std::min(dt, kMaxDt);
 
-    POVState input = get_State();
-    // Apply center + outer deadzones to all analog stick axes.
-    const float cdz = Config::kDeadzoneCenter;
-    const float odz = Config::kDeadzoneOuter;
-    input.forward    = applyDeadzone(input.forward,    cdz, odz);
-    input.strafe     = applyDeadzone(input.strafe,     cdz, odz);
-    input.vertical   = applyDeadzone(input.vertical,   cdz, odz);
-    input.yaw        = applyDeadzone(input.yaw,        cdz, odz);
-    input.pitch      = applyDeadzone(input.pitch,      cdz, odz);
-    input.roll       = applyDeadzone(input.roll,       cdz, odz);
-    input.clawRotate = applyDeadzone(input.clawRotate, cdz, odz);
-    input.clawOpen   = applyDeadzone(input.clawOpen,   cdz, odz);
-    input.claw1Open  = applyDeadzone(input.claw1Open,  cdz, odz);
+    const POVState input = get_State();
 
     // ── Claw motors (proportional, left joystick) ─────────────────────
     setPowerThruster(Config::kClawRotate, clawRotateThruster, input.clawRotate, driver);
