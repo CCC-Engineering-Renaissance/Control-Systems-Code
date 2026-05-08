@@ -34,6 +34,9 @@ bool is_Fresh(int Max_Age_ms = 250);
 // Thread-safe insight of controller state
 POVState get_State();
 
-// Setter that may be useful for tests or simulation 
+// Setter that may be useful for tests or simulation
 void set_State(const POVState& s);
+
+// Signal the UDP server thread to stop
+void stopServer();
 

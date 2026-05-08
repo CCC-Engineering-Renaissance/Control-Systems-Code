@@ -22,6 +22,7 @@ constexpr uint8_t ALL_LED_OFF_H      = 0xFD;
 
 // Bits:
 constexpr uint8_t RESTART            = 0x80;
+constexpr uint8_t AI                 = 0x20;  // Auto-Increment register pointer
 constexpr uint8_t SLEEP              = 0x10;
 constexpr uint8_t ALLCALL            = 0x01;
 constexpr uint8_t INVRT              = 0x10;

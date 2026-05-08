@@ -13,6 +13,8 @@ public:
 
   void WriteRegisterByte(const uint8_t register_address, const uint8_t value);
 
+  void WriteRegisterBlock(uint8_t register_address, const uint8_t* data, size_t len);
+
   uint8_t ReadRegisterByte(const uint8_t register_address);
 
 private:

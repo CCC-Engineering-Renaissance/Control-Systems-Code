@@ -8,7 +8,6 @@ LIBS            := -lboost_system -li2c
 
 ROV_OBJS       := out/main.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o
 ONE_SERVO_OBJS := out/main_One_Servo.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o
-# ADDED out/Thruster.o BELOW
 SPINCLAW_OBJS  := out/spinClaw.o out/Thruster.o out/PCA9685.o out/I2CPeripheral.o
 
 all: out $(TARGET) $(TARGET_ONE) $(TARGET_SPINCLAW)
@@ -49,7 +48,7 @@ out/PCA9685.o: src/PCA9685.cpp include/PCA9685.h include/I2CPeripheral.h include
 out/I2CPeripheral.o: src/I2CPeripheral.cpp include/I2CPeripheral.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
-out/spinClaw.o: src/spinClaw.cpp include/Thruster.h
+out/spinClaw.o: src/spinClaw.cpp include/Thruster.h include/PCA9685.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 out:
