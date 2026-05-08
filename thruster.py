@@ -23,11 +23,13 @@ ALS_DZ = 0.15
 def clamp(v, lo=-1.0, hi=1.0):
     return lo if v < lo else hi if v > hi else v
 
-def apply_deadzone(value, dz=0.05):
+def apply_deadzone(value, dz=0.05, outer_dz=0.05):
     if abs(value) < dz:
         return 0.0
     sign = 1.0 if value > 0 else -1.0
-    return sign * (abs(value) - dz) / (1.0 - dz)
+    if abs(value) > 1.0 - outer_dz:
+        return sign
+    return sign * (abs(value) - dz) / (1.0 - outer_dz - dz)
 
 def smooth(prev, new, factor=0.2):
     result = prev * (1.0 - factor) + new * factor
@@ -68,9 +70,9 @@ class XboxController:
             return (self.js.get_axis(5) + 1.0) / 2.0
         return 0.0
 
-    def axis(self, name, dz=0.10, factor=0.2):
+    def axis(self, name, dz=0.10, outer_dz=0.05, factor=0.2):
         raw = self._get_axis_raw(name)
-        raw = apply_deadzone(raw, dz)
+        raw = apply_deadzone(raw, dz, outer_dz)
         prev = self.filtered.get(name, 0.0)
         val = smooth(prev, raw, factor)
         self.filtered[name] = val
