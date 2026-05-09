@@ -32,9 +32,9 @@ namespace Config {
 namespace {
   volatile std::sig_atomic_t keepRunning = 1;
   constexpr unsigned short kPort        = 5005;
-  constexpr int   kStalePacketMs        = 500;  // raised from 250 — Windows timer jitter can cause gaps
+  constexpr int   kStalePacketMs        = 500;
   constexpr float kMaxDt                = 0.1f;
-  constexpr int   kArmDelayMs           = 3000;  // raised from 500 — ESCs need ~2-3s at neutral to arm
+  constexpr int   kArmDelayMs           = 3000;
 
   constexpr int kChClawRotate = 8;
   constexpr int kChClawOpen   = 9;
@@ -61,19 +61,6 @@ static void centerClaw(bool enabled, Claw& c, PiPCA9685::PCA9685& d) {
 }
 static void setPosClaw(bool enabled, Claw& c, float pos, PiPCA9685::PCA9685& d) {
   if (enabled) c.setPosition(pos, d);
-}
-
-// Mirrors spinClaw.cpp: neutral → arm → 0.5 power → stop.
-// Enable with Config::kClawTest = true.
-static void spinClaw(Thruster& t, PiPCA9685::PCA9685& d) {
-  std::cout << "Spin-claw test: sending neutral, arming ESC...\n";
-  t.stop(d);
-  std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-  std::cout << "Spin-claw test: 0.5 power for 2 s...\n";
-  t.setPower(0.5, d);
-  std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-  t.stop(d);
-  std::cout << "Spin-claw test: done.\n";
 }
 
 int main() {
@@ -124,15 +111,17 @@ int main() {
   Thruster rearLeftHorizontal(6);
   Thruster rearRightHorizontal(7);
 
-  Thruster clawOpenThruster  (kChClawOpen);
-  Claw clawRotate (kChClawRotate, kClawRest, kClawOffset);
+  Thruster clawOpenThruster(kChClawOpen);
+  Claw clawRotate(kChClawRotate, kClawRest, kClawOffset);
   clawRotate.setLimits(kClawMinUs, kClawMaxUs);
+
   leftVertical.setInverted(true);
   rightVertical2.setInverted(true);
   frontRightHorizontal.setInverted(true);
   rearLeftHorizontal.setInverted(true);
-  Claw clawPitch (kChClawPitch, kClawRest, kClawOffset);
-  Claw claw1Open (kChClaw1Open, kClawRest, kClawOffset);
+
+  Claw clawPitch(kChClawPitch, kClawRest, kClawOffset);
+  Claw claw1Open(kChClaw1Open, kClawRest, kClawOffset);
   clawPitch.setLimits(kClawMinUs, kClawMaxUs);
   claw1Open.setLimits(kClawMinUs, kClawMaxUs);
 
@@ -141,7 +130,7 @@ int main() {
     PiPCA9685::PCA9685& drv;
     Thruster &flh, &frh, &rlh, &rrh, &lv, &rv, &lv2, &rv2, &co;
     Claw &cr, &cp, &c1;
-        ~SafeStop() noexcept {
+    ~SafeStop() noexcept {
       auto safe = [](auto fn) noexcept { try { fn(); } catch (...) {} };
       safe([&]{ stopThruster(Config::kFrontLeftHorizontal,  flh,  drv); });
       safe([&]{ stopThruster(Config::kFrontRightHorizontal, frh,  drv); });
@@ -156,7 +145,7 @@ int main() {
       safe([&]{ centerClaw(Config::kClawPitch, cp, drv); });
       safe([&]{ centerClaw(Config::kClaw1Open, c1, drv); });
     }
- } guard{driver,
+  } guard{driver,
     frontLeftHorizontal, frontRightHorizontal, rearLeftHorizontal, rearRightHorizontal,
     leftVertical, rightVertical, leftVertical2, rightVertical2,
     clawOpenThruster,
@@ -171,17 +160,13 @@ int main() {
   stopThruster(Config::kLeftVertical2,        leftVertical2,        driver);
   stopThruster(Config::kRightVertical2,       rightVertical2,       driver);
   centerClaw(Config::kClawRotate, clawRotate, driver);
-  stopThruster(Config::kClawOpen,   clawOpenThruster,   driver);
+  stopThruster(Config::kClawOpen, clawOpenThruster, driver);
   centerClaw(Config::kClawPitch,  clawPitch,  driver);
   centerClaw(Config::kClaw1Open,  claw1Open,  driver);
 
   std::cout << "Active channels set to neutral, waiting for ESCs to arm...\n";
   std::this_thread::sleep_for(std::chrono::milliseconds(kArmDelayMs));
   std::cout << "ROV is ON\n";
-
-  if (Config::kClawTest && Config::kClawRotate) {
-    spinClaw(clawRotateThruster, driver);
-  }
 
   // ── Network interface debug ───────────────────────────────────────────
   std::cout << "── Network interfaces ───────────────\n";
@@ -202,9 +187,10 @@ int main() {
 
   auto lastTime = std::chrono::steady_clock::now();
 
-  float clawPitchPos = 0.0f;
-  float claw1OpenPos = 0.0f;
   float clawRotatePos = 0.0f;
+  float clawPitchPos  = 0.0f;
+  float claw1OpenPos  = 0.0f;
+
   try {
   while (keepRunning) {
     if (!is_Fresh(kStalePacketMs)) {
@@ -217,13 +203,13 @@ int main() {
       stopThruster(Config::kLeftVertical2,        leftVertical2,        driver);
       stopThruster(Config::kRightVertical2,       rightVertical2,       driver);
       centerClaw(Config::kClawRotate, clawRotate, driver);
-      stopThruster(Config::kClawOpen,   clawOpenThruster,   driver);
+      stopThruster(Config::kClawOpen, clawOpenThruster, driver);
       centerClaw(Config::kClawPitch,  clawPitch,  driver);
       centerClaw(Config::kClaw1Open,  claw1Open,  driver);
       yawPID.reset();
       pitchPID.reset();
       rollPID.reset();
-      clawPitchPos = claw1OpenPos = 0.0f;
+      clawRotatePos = clawPitchPos = claw1OpenPos = 0.0f;
       lastTime = std::chrono::steady_clock::now();
       std::cout << "Waiting for controller packets...\r";
       std::cout.flush();
@@ -238,9 +224,19 @@ int main() {
 
     const POVState input = get_State();
 
-    // ── Claw motors (proportional, left joystick) ─────────────────────
-    setPowerThruster(Config::kClawRotate, clawRotateThruster, input.clawRotate, driver);
-    setPowerThruster(Config::kClawOpen,   clawOpenThruster,   input.clawOpen,   driver);
+    // ── Claw rotate (servo, holds position) ───────────────────────────
+    if (input.clawRotate > 0.0f) {
+      clawRotatePos += kClawStep;
+      if (clawRotatePos >= 1.0f) clawRotatePos = 1.0f;
+      setPosClaw(Config::kClawRotate, clawRotate, clawRotatePos, driver);
+    } else if (input.clawRotate < 0.0f) {
+      clawRotatePos -= kClawStep;
+      if (clawRotatePos <= -1.0f) clawRotatePos = -1.0f;
+      setPosClaw(Config::kClawRotate, clawRotate, clawRotatePos, driver);
+    }
+
+    // ── Claw open (still a thruster motor) ────────────────────────────
+    setPowerThruster(Config::kClawOpen, clawOpenThruster, input.clawOpen, driver);
 
     // LB → open clawPitch | LT → close clawPitch
     if (input.clawPitch > 0.0f) {
@@ -313,7 +309,7 @@ int main() {
     setPowerThruster(Config::kLeftVertical2,        leftVertical2,        output.leftVertical2,        driver);
     setPowerThruster(Config::kRightVertical2,       rightVertical2,       output.rightVertical2,       driver);
 
-    std::cout << "ROV running | ClawR=" << input.clawRotate
+    std::cout << "ROV running | ClawR=" << clawRotatePos
               << " ClawO=" << input.clawOpen
               << " ClawP=" << clawPitchPos
               << " Claw1=" << claw1OpenPos
