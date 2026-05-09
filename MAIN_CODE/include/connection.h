@@ -13,9 +13,7 @@ struct POVState{
   float roll = 0.0f;
 
   float clawRotate = 0.0f;
-  float clawOpen = 0.0f;
   float clawPitch = 0.0f;
-  float claw1Open = 0.0f;
 
   float pitchAngle = 0.0f;
   float yawAngle = 0.0f;

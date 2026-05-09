@@ -157,26 +157,17 @@ def main():
                     print("\nESC pressed. Exiting.")
                     return
 
-            # ── ALS angle accumulation (ROV right stick) ──────────────
-            rjy_raw = joyROV._get_axis_raw("RightJoystickY")
+            # ── ALS angle accumulation (ROV right stick X = yaw) ─────
             rjx_raw = joyROV._get_axis_raw("RightJoystickX")
 
             if als:
-                rjy_als = apply_deadzone(rjy_raw, dz=ALS_DZ)
                 rjx_als = apply_deadzone(rjx_raw, dz=ALS_DZ)
-                pitchAngle += (rjy_als ** 3) * 0.001
-                yawAngle   += (rjx_als ** 3) * 0.001
+                yawAngle += (rjx_als ** 3) * 0.001
 
             # Y on ROV controller toggles ALS
             if joyROV.Y == 1 and not pushed:
                 als = not als
             pushed = (joyROV.Y == 1)
-
-            # Wrap angles to [-180, 180]
-            if pitchAngle < -180:
-                pitchAngle += 360
-            elif pitchAngle > 180:
-                pitchAngle -= 360
 
             if yawAngle < -180:
                 yawAngle += 360
@@ -195,37 +186,26 @@ def main():
             out = 1 if als else 0
 
             # ── ROV axes ──────────────────────────────────────────────
-            ljy = joyROV.axis("LeftJoystickY",  dz=0.10, factor=0.5)
-            ljx = joyROV.axis("LeftJoystickX",  dz=0.10, factor=0.5)
-            lt  = joyROV.axis("LeftTrigger",     dz=0.05, factor=0.5)
-            rt  = joyROV.axis("RightTrigger",    dz=0.05, factor=0.5)
-            rjy = joyROV.axis("RightJoystickY",  dz=0.10, factor=0.5)
-            rjx = joyROV.axis("RightJoystickX",  dz=0.10, factor=0.5)
+            ljy = joyROV.axis("LeftJoystickY",  dz=0.10, factor=0.5)  # vertical
+            ljx = joyROV.axis("LeftJoystickX",  dz=0.10, factor=0.5)  # strafe
+            rjy = joyROV.axis("RightJoystickY", dz=0.10, factor=0.5)  # forward
+            rjx = joyROV.axis("RightJoystickX", dz=0.10, factor=0.5)  # yaw
 
             # ── Claw controller ───────────────────────────────────────
-            claw_ljy = joyClaw.axis("LeftJoystickY", dz=0.10, factor=0.2)
-
             clawRotate = int(joyClaw.X) - int(joyClaw.A)
-            clawOpen   = int(joyClaw.Y) - int(joyClaw.B)
             clawPitch  = int(joyClaw.LeftBumper) - int(joyClaw.axis("LeftTrigger", dz=0.05) > 0.1)
-            claw1Open  = (claw_ljy ** 3) * -0.25
 
-            # Vertical: clamp residual trigger noise to zero
-            vert = (rt - lt) / -3.0 * scale
-            if abs(vert) < 0.05:
-                vert = 0.0
+            vert = ljy * scale
 
             msg = (
-                f"{ljy * scale * 1.5} "
+                f"{rjy * scale * 1.5} "
                 f"{ljx * scale * -1} "
                 f"{vert} "
-                f"{rjx * 0.66 * scale * -2} "
-                f"{rjy * 0.66 * scale * 2} "
+                f"{rjx * 0.66 * scale * 2} "
+                f"0.0 "
                 f"{(joyROV.RightBumper - joyROV.LeftBumper) * scale} "
                 f"{clawRotate} "
-                f"{clawOpen} "
                 f"{clawPitch} "
-                f"{claw1Open} "
                 f"{pitchAngle} "
                 f"{yawAngle} "
                 f"{out}\n"
@@ -237,17 +217,13 @@ def main():
                 last = now
 
                 print(
-                    f"Fwd: {ljy * scale * 1.5:.2f}",
-                    f"Strafe: {ljx * scale * -1:.2f}",
-                    f"Vert: {vert:.2f}",
-                    f"Yaw: {rjx * 0.66 * scale * -2:.2f}",
-                    f"Pitch: {rjy * 0.66 * scale * 2:.2f}",
+                    f"Fwd(RJ-Y): {rjy * scale * 1.5:.2f}",
+                    f"Strafe(LJ-X): {ljx * scale * -1:.2f}",
+                    f"Vert(LJ-Y): {vert:.2f}",
+                    f"Yaw(RJ-X): {rjx * 0.66 * scale * 2:.2f}",
                     f"Roll: {joyROV.RightBumper - joyROV.LeftBumper}",
-                    f"ClawRotate(X/A): {clawRotate}",
-                    f"ClawOpen(Y/B): {clawOpen}",
-                    f"ClawPitch(LB/LT): {clawPitch}",
-                    f"Claw1Open: {claw1Open:.2f}",
-                    f"PitchAngle: {pitchAngle:.1f}",
+                    f"Servo1(X/A): {clawRotate}",
+                    f"Servo2(LB/LT): {clawPitch}",
                     f"YawAngle: {yawAngle:.1f}",
                     f"ALS: {als}",
                 )

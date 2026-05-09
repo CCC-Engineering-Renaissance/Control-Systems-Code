@@ -103,7 +103,7 @@ void server(unsigned short port){
 
       // if (bad packet){ ignore it and we can keep the last good state} 
       if (!(ss >> temp.forward >> temp.strafe >> temp.vertical >> temp.yaw >> temp.pitch >> temp.roll
-             >> temp.clawRotate >> temp.clawOpen >> temp.clawPitch >> temp.claw1Open >> temp.pitchAngle 
+             >> temp.clawRotate >> temp.clawPitch >> temp.pitchAngle
              >> temp.yawAngle >> alsInt)) {
         
         continue; // ignore it

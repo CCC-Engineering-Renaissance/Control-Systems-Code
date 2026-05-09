@@ -40,7 +40,7 @@ Thruster_Outputs Thruster_Mixer::mix(const POVState& input,
 
   Thruster_Outputs output{}; //"output" comes from here so we dont say Thruster_Outputs.(thrusterobject)
   
-  float Total_Yaw = yawCommand + Yaw_PID_Output; // IT IS POSSIBLE AFTER TESTING IT SHOULD BE '-' AND NOT '+' 
+  float Total_Yaw = yawCommand + Yaw_PID_Output;
 
   // Mix forward/strafe/yaw into 4 horizontal thrusters | side note: yaw is rotation about z axis
   output.frontLeftHorizontal  = forwardCommand + strafeCommand + Total_Yaw;
@@ -57,7 +57,7 @@ Thruster_Outputs Thruster_Mixer::mix(const POVState& input,
 
   // Mix vertical/pitch/roll into 4 vertical thrusters 
 
-  float Total_Pitch = pitchCommand + Pitch_PID_Output; // SAME NOTE AS LINE 44
+  float Total_Pitch = pitchCommand + Pitch_PID_Output;
   float Total_Roll = rollCommand + Roll_PID_Output;
 
   output.leftVertical   = verticalCommand + Total_Pitch + Total_Roll;
