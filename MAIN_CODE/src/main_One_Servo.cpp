@@ -126,6 +126,10 @@ int main() {
 
   Thruster clawRotateThruster(kChClawRotate);
   Thruster clawOpenThruster  (kChClawOpen);
+  leftVertical.setInverted(true);
+  rightVertical2.setInverted(true);
+  frontRightHorizontal.setInverted(true);
+  rearLeftHorizontal.setInverted(true);
   Claw clawPitch (kChClawPitch, kClawRest, kClawOffset);
   Claw claw1Open (kChClaw1Open, kClawRest, kClawOffset);
   clawPitch.setLimits(kClawMinUs, kClawMaxUs);

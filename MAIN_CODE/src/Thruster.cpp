@@ -150,7 +150,8 @@ void Thruster::setPower(double pwr, PiPCA9685::PCA9685 &driver) {
   }
 
   // Clamp requested control-space command.
-  const double p = clampPower(pwr);
+  double p = clampPower(pwr);
+  if (inverted) p = -p;
 
   // Map normalized power -> microseconds around neutral.
   // Example: rest=1500, offset=350

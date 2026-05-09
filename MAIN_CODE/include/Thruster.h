@@ -22,7 +22,7 @@ private:
 
   int min_us;  // the absolute safety limit (low)
   int max_us;  // the absolute safety limit (high)
-
+  bool inverted = false;
 public:
   // Constructors
   Thruster();
@@ -38,7 +38,7 @@ public:
   void setRest(int rest_us);
   void setOffset(int offset_us);
   void setLimits(int min_us, int max_us);
-
+  void setInverted(bool inv) { inverted = inv; }
   // Gets
   int getPin() const;
   int getRest() const;
