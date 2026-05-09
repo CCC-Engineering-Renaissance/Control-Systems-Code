@@ -41,9 +41,9 @@ namespace {
   constexpr int kChClawPitch  = 10;
   constexpr int kChClaw1Open  = 11;
   constexpr int kClawRest     = 1500;
-  constexpr int kClawOffset   = 900;
-  constexpr int kClawMinUs    = 944;
-  constexpr int kClawMaxUs    = 2056;
+  constexpr int kClawOffset   = 500;
+  constexpr int kClawMinUs    = 1000;
+  constexpr int kClawMaxUs    = 2000;
 
   constexpr float kClawStep = 0.05f;
 
