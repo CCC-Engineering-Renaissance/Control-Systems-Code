@@ -124,8 +124,9 @@ int main() {
   Thruster rearLeftHorizontal(6);
   Thruster rearRightHorizontal(7);
 
-  Thruster clawRotateThruster(kChClawRotate);
   Thruster clawOpenThruster  (kChClawOpen);
+  Claw clawRotate (kChClawRotate, kClawRest, kClawOffset);
+  clawRotate.setLimits(kClawMinUs, kClawMaxUs);
   leftVertical.setInverted(true);
   rightVertical2.setInverted(true);
   frontRightHorizontal.setInverted(true);
@@ -138,9 +139,9 @@ int main() {
   // Commands all channels to neutral on any exit path (exception, signal, or normal return).
   struct SafeStop {
     PiPCA9685::PCA9685& drv;
-    Thruster &flh, &frh, &rlh, &rrh, &lv, &rv, &lv2, &rv2, &cr, &co;
-    Claw &cp, &c1;
-    ~SafeStop() noexcept {
+    Thruster &flh, &frh, &rlh, &rrh, &lv, &rv, &lv2, &rv2, &co;
+    Claw &cr, &cp, &c1;
+        ~SafeStop() noexcept {
       auto safe = [](auto fn) noexcept { try { fn(); } catch (...) {} };
       safe([&]{ stopThruster(Config::kFrontLeftHorizontal,  flh,  drv); });
       safe([&]{ stopThruster(Config::kFrontRightHorizontal, frh,  drv); });
@@ -150,16 +151,16 @@ int main() {
       safe([&]{ stopThruster(Config::kRightVertical,        rv,   drv); });
       safe([&]{ stopThruster(Config::kLeftVertical2,        lv2,  drv); });
       safe([&]{ stopThruster(Config::kRightVertical2,       rv2,  drv); });
-      safe([&]{ stopThruster(Config::kClawRotate, cr, drv); });
+      safe([&]{ centerClaw(Config::kClawRotate, cr, drv); });
       safe([&]{ stopThruster(Config::kClawOpen,   co, drv); });
       safe([&]{ centerClaw(Config::kClawPitch, cp, drv); });
       safe([&]{ centerClaw(Config::kClaw1Open, c1, drv); });
     }
-  } guard{driver,
+ } guard{driver,
     frontLeftHorizontal, frontRightHorizontal, rearLeftHorizontal, rearRightHorizontal,
     leftVertical, rightVertical, leftVertical2, rightVertical2,
-    clawRotateThruster, clawOpenThruster,
-    clawPitch, claw1Open};
+    clawOpenThruster,
+    clawRotate, clawPitch, claw1Open};
 
   stopThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  driver);
   stopThruster(Config::kFrontRightHorizontal, frontRightHorizontal, driver);
@@ -169,7 +170,7 @@ int main() {
   stopThruster(Config::kRightVertical,        rightVertical,        driver);
   stopThruster(Config::kLeftVertical2,        leftVertical2,        driver);
   stopThruster(Config::kRightVertical2,       rightVertical2,       driver);
-  stopThruster(Config::kClawRotate, clawRotateThruster, driver);
+  centerClaw(Config::kClawRotate, clawRotate, driver);
   stopThruster(Config::kClawOpen,   clawOpenThruster,   driver);
   centerClaw(Config::kClawPitch,  clawPitch,  driver);
   centerClaw(Config::kClaw1Open,  claw1Open,  driver);
@@ -203,7 +204,7 @@ int main() {
 
   float clawPitchPos = 0.0f;
   float claw1OpenPos = 0.0f;
-
+  float clawRotatePos = 0.0f;
   try {
   while (keepRunning) {
     if (!is_Fresh(kStalePacketMs)) {
@@ -215,7 +216,7 @@ int main() {
       stopThruster(Config::kRightVertical,        rightVertical,        driver);
       stopThruster(Config::kLeftVertical2,        leftVertical2,        driver);
       stopThruster(Config::kRightVertical2,       rightVertical2,       driver);
-      stopThruster(Config::kClawRotate, clawRotateThruster, driver);
+      centerClaw(Config::kClawRotate, clawRotate, driver);
       stopThruster(Config::kClawOpen,   clawOpenThruster,   driver);
       centerClaw(Config::kClawPitch,  clawPitch,  driver);
       centerClaw(Config::kClaw1Open,  claw1Open,  driver);
