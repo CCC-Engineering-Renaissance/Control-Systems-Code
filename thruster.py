@@ -192,8 +192,9 @@ def main():
             rjx = joyROV.axis("RightJoystickX", dz=0.10, factor=0.5)  # yaw
 
             # ── Claw controller ───────────────────────────────────────
-            clawRotate = int(joyClaw.X) - int(joyClaw.A)
-            clawPitch  = int(joyClaw.LeftBumper) - int(joyClaw.axis("LeftTrigger", dz=0.05) > 0.1)
+            # Y/B: rotate servo (ch8) | X/A: open/close servo (ch9)
+            clawRotate = int(joyClaw.Y) - int(joyClaw.B)
+            clawOpen   = int(joyClaw.X) - int(joyClaw.A)
 
             vert = ljy * scale
 
@@ -205,7 +206,7 @@ def main():
                 f"0.0 "
                 f"{(joyROV.RightBumper - joyROV.LeftBumper) * scale} "
                 f"{clawRotate} "
-                f"{clawPitch} "
+                f"{clawOpen} "
                 f"{pitchAngle} "
                 f"{yawAngle} "
                 f"{out}\n"
@@ -222,8 +223,8 @@ def main():
                     f"Vert(LJ-Y): {vert:.2f}",
                     f"Yaw(RJ-X): {rjx * 0.66 * scale * 2:.2f}",
                     f"Roll: {joyROV.RightBumper - joyROV.LeftBumper}",
-                    f"Servo1(X/A): {clawRotate}",
-                    f"Servo2(LB/LT): {clawPitch}",
+                    f"Servo1-Rotate(Y/B): {clawRotate}",
+                    f"Servo2-Open(X/A): {clawOpen}",
                     f"YawAngle: {yawAngle:.1f}",
                     f"ALS: {als}",
                 )

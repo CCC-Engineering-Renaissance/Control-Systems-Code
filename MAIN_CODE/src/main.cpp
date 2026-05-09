@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <csignal>
 #include <iostream>
@@ -16,13 +17,13 @@ namespace {
   constexpr float kMaxDt                = 0.1f;
   constexpr int   kArmDelayMs           = 500;
 
-  constexpr int kChClawRotate = 8;
-  constexpr int kChClawOpen   = 9;
-  constexpr int kChClawPitch  = 10;
-  constexpr int kClawRest     = 1500;
-  constexpr int kClawOffset   = 556;
-  constexpr int kClawMinUs    = 944;
-  constexpr int kClawMaxUs    = 2056;
+  constexpr int   kChClawRotate = 8;
+  constexpr int   kChClawOpen   = 9;
+  constexpr int   kClawRest     = 1500;
+  constexpr int   kClawOffset   = 556;
+  constexpr int   kClawMinUs    = 944;
+  constexpr int   kClawMaxUs    = 2056;
+  constexpr float kClawSpeed    = 0.5f; // full travel in 2 s at full button press
 
   void signalHandler(int) {
     keepRunning = 0;
@@ -59,10 +60,8 @@ int main() {
 
   Claw clawRotate(kChClawRotate, kClawRest, kClawOffset);
   Claw clawOpen  (kChClawOpen,   kClawRest, kClawOffset);
-  Claw clawPitch (kChClawPitch,  kClawRest, kClawOffset);
   clawRotate.setLimits(kClawMinUs, kClawMaxUs);
   clawOpen.setLimits  (kClawMinUs, kClawMaxUs);
-  clawPitch.setLimits (kClawMinUs, kClawMaxUs);
 
   // Send neutral immediately so ESCs don't see garbage PWM on boot
   frontLeftHorizontal.stop(driver);
@@ -75,7 +74,6 @@ int main() {
   rightVertical2.stop(driver);
   clawRotate.center(driver);
   clawOpen.center  (driver);
-  clawPitch.center (driver);
   std::cout << "All thrusters set to neutral, waiting for ESCs to arm...\n";
   std::this_thread::sleep_for(std::chrono::milliseconds(kArmDelayMs));
   std::cout << "ROV is ON\n";
@@ -84,6 +82,10 @@ int main() {
   PID yawPID  (0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
   PID pitchPID(0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
   PID rollPID (0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
+
+  // Current servo positions in [-1, 1]; updated incrementally each loop
+  float clawRotatePos = 0.0f;
+  float clawOpenPos   = 0.0f;
 
   auto lastTime = std::chrono::steady_clock::now();
 
@@ -99,7 +101,8 @@ int main() {
       rightVertical2.stop(driver);
       clawRotate.center(driver);
       clawOpen.center  (driver);
-      clawPitch.center (driver);
+      clawRotatePos = 0.0f;
+      clawOpenPos   = 0.0f;
       yawPID.reset();
       pitchPID.reset();
       rollPID.reset();
@@ -148,9 +151,11 @@ int main() {
     leftVertical2.setPower(output.leftVertical2,               driver);
     rightVertical2.setPower(output.rightVertical2,             driver);
 
-    clawRotate.setPosition(input.clawRotate, driver);
-    clawOpen.setPosition  (input.clawOpen,   driver);
-    clawPitch.setPosition (input.clawPitch,  driver);
+    // Button held => move; button released (input == 0) => hold position
+    clawRotatePos = std::clamp(clawRotatePos + input.clawRotate * kClawSpeed * dt, -1.0f, 1.0f);
+    clawOpenPos   = std::clamp(clawOpenPos   + input.clawOpen   * kClawSpeed * dt, -1.0f, 1.0f);
+    clawRotate.setPosition(clawRotatePos, driver);
+    clawOpen.setPosition  (clawOpenPos,   driver);
 
     std::cout << "ROV running...                    \r";
     std::cout.flush();
@@ -167,7 +172,6 @@ int main() {
   rightVertical2.stop(driver);
   clawRotate.center(driver);
   clawOpen.center  (driver);
-  clawPitch.center (driver);
   net.detach();
   std::cout << "\nExiting safely.\n";
   return 0;
