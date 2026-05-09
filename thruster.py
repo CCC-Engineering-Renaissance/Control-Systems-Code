@@ -23,7 +23,7 @@ ALS_DZ = 0.15
 def clamp(v, lo=-1.0, hi=1.0):
     return lo if v < lo else hi if v > hi else v
 
-def apply_deadzone(value, dz=0.05, outer_dz=0.05):
+def apply_deadzone(value, dz=0.10, outer_dz=0.10):
     if abs(value) < dz:
         return 0.0
     sign = 1.0 if value > 0 else -1.0
