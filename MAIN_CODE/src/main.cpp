@@ -15,7 +15,7 @@ namespace {
   constexpr unsigned short kPort        = 5005;
   constexpr int   kStalePacketMs        = 250;
   constexpr float kMaxDt                = 0.1f;
-  constexpr int   kArmDelayMs           = 500;
+  constexpr int   kArmDelayMs           = 3000;
 
   constexpr int   kChClawRotate = 8;
   constexpr int   kChClawOpen   = 9;
@@ -99,10 +99,8 @@ int main() {
       rightVertical.stop(driver);
       leftVertical2.stop(driver);
       rightVertical2.stop(driver);
-      clawRotate.center(driver);
-      clawOpen.center  (driver);
-      clawRotatePos = 0.0f;
-      clawOpenPos   = 0.0f;
+      // Claws hold their last position on timeout so a gripped object
+      // isn't dropped when the controller link drops briefly.
       yawPID.reset();
       pitchPID.reset();
       rollPID.reset();

@@ -179,10 +179,10 @@ def main():
             vert = (lt - rt) * scale
 
             msg = (
-                f"{ljy * scale * 1.5} "
+                f"{ljy * scale} "
                 f"{ljx * scale * -1} "
                 f"{vert} "
-                f"{rjx * 0.66 * scale * 2} "
+                f"{rjx * scale} "
                 f"{rjy * scale} "
                 f"{(joyROV.RightBumper - joyROV.LeftBumper) * scale} "
                 f"{clawRotate} "
@@ -198,11 +198,11 @@ def main():
                 last = now
 
                 print(
-                    f"Fwd(LJ-Y): {ljy * scale * 1.5:.2f}",
+                    f"Fwd(LJ-Y): {ljy * scale:.2f}",
                     f"Strafe(LJ-X): {ljx * scale * -1:.2f}",
                     f"Vert(LT-RT): {vert:.2f}",
                     f"Pitch(RJ-Y): {rjy * scale:.2f}",
-                    f"Yaw(RJ-X): {rjx * 0.66 * scale * 2:.2f}",
+                    f"Yaw(RJ-X): {rjx * scale:.2f}",
                     f"Roll(RB/LB): {joyROV.RightBumper - joyROV.LeftBumper}",
                     f"SlowMode: {slow_mode}",
                     f"Servo1-Rotate(Y/B): {clawRotate}",

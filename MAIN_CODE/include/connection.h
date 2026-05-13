@@ -24,7 +24,7 @@ struct POVState{
 extern POVState state;
 
 // Start UDP receiver and run it in its own thread 
-void server(unsigned short port = 12345);
+void server(unsigned short port = 5005);
 
 // Return true if a packet was recently received 
 bool is_Fresh(int Max_Age_ms = 250);
