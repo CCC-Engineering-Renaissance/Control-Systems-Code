@@ -24,7 +24,7 @@ $(TARGET_ONE): $(ONE_SERVO_OBJS)
 out/main.o: src/main.cpp include/Thruster.h include/Thruster_Mixer.h include/Claw.h include/PCA9685.h include/connection.h include/PID.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
-out/main_One_Servo.o: src/main_One_Servo.cpp include/Thruster.h include/Thruster_Mixer.h include/Claw.h include/PCA9685.h include/connection.h include/PID.h
+out/main_One_Servo.o: src/main_One_Servo.cpp include/Thruster.h include/Thruster_Mixer.h include/Claw.h include/PCA9685.h include/connection.h include/PID.h include/IMU.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 out/connection.o: src/connection.cpp include/connection.h
