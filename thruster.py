@@ -18,8 +18,6 @@ BTN_RB    = 5
 BTN_BACK  = 6
 BTN_START = 7
 
-ALS_DZ = 0.15
-
 def clamp(v, lo=-1.0, hi=1.0):
     return lo if v < lo else hi if v > hi else v
 
@@ -134,10 +132,8 @@ def get_controllers():
 def main():
     joyROV, joyClaw = get_controllers()
 
-    pushed     = False
-    pitchAngle = 0.0
-    yawAngle   = 0.0
-    als        = False
+    slow_mode   = False
+    slow_pushed = False
 
     period = 1.0 / SEND_HZ
     last   = 0.0
@@ -157,38 +153,22 @@ def main():
                     print("\nESC pressed. Exiting.")
                     return
 
-            # ── ALS angle accumulation (ROV right stick X = yaw) ─────
-            rjx_raw = joyROV._get_axis_raw("RightJoystickX")
+            # ── Slow mode: Y enables (50% power), B restores normal ───
+            if joyROV.Y == 1 and not slow_pushed:
+                slow_mode = True
+            slow_pushed = (joyROV.Y == 1)
 
-            if als:
-                rjx_als = apply_deadzone(rjx_raw, dz=ALS_DZ)
-                yawAngle += (rjx_als ** 3) * 0.001
-
-            # Y on ROV controller toggles ALS
-            if joyROV.Y == 1 and not pushed:
-                als = not als
-            pushed = (joyROV.Y == 1)
-
-            if yawAngle < -180:
-                yawAngle += 360
-            elif yawAngle > 180:
-                yawAngle -= 360
-
-            # ── ROV speed scale ───────────────────────────────────────
-            scale = 0.5
-            if joyROV.A == 1:
-                scale = 1.0
             if joyROV.B == 1:
-                scale = 0.25
-            if joyROV.X == 1:
-                scale = 1.5
+                slow_mode = False
 
-            out = 1 if als else 0
+            scale = 0.5 if slow_mode else 1.0
 
             # ── ROV axes ──────────────────────────────────────────────
-            ljy = joyROV.axis("LeftJoystickY",  dz=0.10, factor=0.5)  # vertical
-            ljx = joyROV.axis("LeftJoystickX",  dz=0.10, factor=0.5)  # strafe
-            rjy = joyROV.axis("RightJoystickY", dz=0.10, factor=0.5)  # forward
+            ljy = joyROV.axis("LeftJoystickY",  dz=0.10, factor=0.5)  # forward/backward
+            ljx = joyROV.axis("LeftJoystickX",  dz=0.10, factor=0.5)  # strafe left/right
+            lt  = joyROV.axis("LeftTrigger",    dz=0.05, factor=0.5)  # translate up
+            rt  = joyROV.axis("RightTrigger",   dz=0.05, factor=0.5)  # translate down
+            rjy = joyROV.axis("RightJoystickY", dz=0.10, factor=0.5)  # pitch
             rjx = joyROV.axis("RightJoystickX", dz=0.10, factor=0.5)  # yaw
 
             # ── Claw controller ───────────────────────────────────────
@@ -196,20 +176,20 @@ def main():
             clawRotate = int(joyClaw.Y) - int(joyClaw.B)
             clawOpen   = int(joyClaw.X) - int(joyClaw.A)
 
-            vert = ljy * scale
+            vert = (lt - rt) * scale
 
             msg = (
-                f"{rjy * scale * 1.5} "
+                f"{ljy * scale * 1.5} "
                 f"{ljx * scale * -1} "
                 f"{vert} "
                 f"{rjx * 0.66 * scale * 2} "
-                f"0.0 "
+                f"{rjy * scale} "
                 f"{(joyROV.RightBumper - joyROV.LeftBumper) * scale} "
                 f"{clawRotate} "
                 f"{clawOpen} "
-                f"{pitchAngle} "
-                f"{yawAngle} "
-                f"{out}\n"
+                f"0.0 "
+                f"0.0 "
+                f"0\n"
             )
 
             now = time.time()
@@ -218,15 +198,15 @@ def main():
                 last = now
 
                 print(
-                    f"Fwd(RJ-Y): {rjy * scale * 1.5:.2f}",
+                    f"Fwd(LJ-Y): {ljy * scale * 1.5:.2f}",
                     f"Strafe(LJ-X): {ljx * scale * -1:.2f}",
-                    f"Vert(LJ-Y): {vert:.2f}",
+                    f"Vert(LT-RT): {vert:.2f}",
+                    f"Pitch(RJ-Y): {rjy * scale:.2f}",
                     f"Yaw(RJ-X): {rjx * 0.66 * scale * 2:.2f}",
-                    f"Roll: {joyROV.RightBumper - joyROV.LeftBumper}",
+                    f"Roll(RB/LB): {joyROV.RightBumper - joyROV.LeftBumper}",
+                    f"SlowMode: {slow_mode}",
                     f"Servo1-Rotate(Y/B): {clawRotate}",
                     f"Servo2-Open(X/A): {clawOpen}",
-                    f"YawAngle: {yawAngle:.1f}",
-                    f"ALS: {als}",
                 )
 
             time.sleep(0.001)
