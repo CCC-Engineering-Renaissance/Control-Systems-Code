@@ -106,7 +106,9 @@ int main() {
 
   leftVertical.setInverted(true);
   rightVertical2.setInverted(true);
-  frontRightHorizontal.setInverted(true);
+  // Front pair: both not inverted → CW for forward, CCW for backward
+  // Rear pair:  both inverted     → CCW for forward, CW for backward
+  rearLeftHorizontal.setInverted(true);
   rearRightHorizontal.setInverted(true);
 
   Claw clawRotate(kChClawRotate, kClawRest, kClawOffset);
