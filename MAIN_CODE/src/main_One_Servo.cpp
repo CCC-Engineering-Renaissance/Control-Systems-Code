@@ -37,9 +37,9 @@ namespace {
   constexpr int   kChClawRotate = 8;
   constexpr int   kChClawOpen   = 9;
   constexpr int   kClawRest     = 1500;
-  constexpr int   kClawOffset   = 139;   // 25° per side = 50° total (25/90 × 500 ≈ 139 µs)
-  constexpr int   kClawMinUs    = 1361;  // 1500 - 139
-  constexpr int   kClawMaxUs    = 1639;  // 1500 + 139
+  constexpr int   kClawOffset   = 278;   // 25° per side = 50° total (25/90 × 500 ≈ 139 µs)
+  constexpr int   kClawMinUs    = 1222;  // 1500 - 139
+  constexpr int   kClawMaxUs    = 1778;  // 1500 + 139
   constexpr float kClawSpeed    = 0.5f;  // full travel in 2 s at full button press
 
   void signalHandler(int) { keepRunning = 0; }
