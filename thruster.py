@@ -161,15 +161,15 @@ def main():
             if joyROV.B == 1:
                 slow_mode = False
 
-            scale = 0.5 if slow_mode else 1.0
+            scale = 0.5 if slow_mode else 0.75
 
             # ── ROV axes ──────────────────────────────────────────────
-            ljy = joyROV.axis("LeftJoystickY",  dz=0.10, factor=0.5)  # forward/backward
-            ljx = joyROV.axis("LeftJoystickX",  dz=0.10, factor=0.5)  # strafe left/right
-            lt  = joyROV.axis("LeftTrigger",    dz=0.05, factor=0.5)  # translate up
-            rt  = joyROV.axis("RightTrigger",   dz=0.05, factor=0.5)  # translate down
-            rjy = joyROV.axis("RightJoystickY", dz=0.10, factor=0.5)  # pitch
-            rjx = joyROV.axis("RightJoystickX", dz=0.10, factor=0.5)  # yaw
+            ljy = joyROV.axis("LeftJoystickY",  dz=0.10, factor=1.0)  # forward/backward
+            ljx = joyROV.axis("LeftJoystickX",  dz=0.10, factor=1.0)  # strafe left/right
+            lt  = joyROV.axis("LeftTrigger",    dz=0.05, factor=1.0)  # translate up
+            rt  = joyROV.axis("RightTrigger",   dz=0.05, factor=1.0)  # translate down
+            rjy = joyROV.axis("RightJoystickY", dz=0.10, factor=1.0)  # pitch
+            rjx = joyROV.axis("RightJoystickX", dz=0.10, factor=1.0)  # yaw
 
             # ── Claw controller ───────────────────────────────────────
             # Y/B: rotate servo (ch8) | X/A: open/close servo (ch9)
@@ -180,10 +180,10 @@ def main():
 
             msg = (
                 f"{ljy * scale} "
-                f"{ljx * scale * -1} "
+                f"{ljx * scale} "
                 f"{vert} "
                 f"{rjx * scale} "
-                f"{rjy * scale} "
+                f"{rjy * scale * -1} "
                 f"{(joyROV.RightBumper - joyROV.LeftBumper) * scale} "
                 f"{clawRotate} "
                 f"{clawOpen} "
@@ -199,9 +199,9 @@ def main():
 
                 print(
                     f"Fwd(LJ-Y): {ljy * scale:.2f}",
-                    f"Strafe(LJ-X): {ljx * scale * -1:.2f}",
+                    f"Strafe(LJ-X): {ljx * scale:.2f}",
                     f"Vert(LT-RT): {vert:.2f}",
-                    f"Pitch(RJ-Y): {rjy * scale:.2f}",
+                    f"Pitch(RJ-Y): {rjy * scale * -1:.2f}",
                     f"Yaw(RJ-X): {rjx * scale:.2f}",
                     f"Roll(RB/LB): {joyROV.RightBumper - joyROV.LeftBumper}",
                     f"SlowMode: {slow_mode}",
