@@ -95,19 +95,27 @@ int main() {
   driver.set_pwm_freq(50.0);
   std::cout << "PCA9685 initialized on /dev/i2c-1 at address 0x40\n";
 
+  // Horizontal thrusters (X-frame, 45° mount)
+  // Control convention: +forward = fwd, +strafe = right, +yaw = turn right
   Thruster frontLeftHorizontal(0);
   Thruster frontRightHorizontal(1);
+  Thruster rearLeftHorizontal(6);
+  Thruster rearRightHorizontal(7);
+
+  // Vertical thrusters
+  // ch2/ch3 = front-left/front-right verticals  (additive pitch side)
+  // ch4/ch5 = rear-left/rear-right  verticals   (subtractive pitch side)
+  // Control convention: +pitch = nose up, -pitch = nose down
+  //   Right stick up → sends negative pitch → nose dips down
   Thruster leftVertical(2);
   Thruster rightVertical(3);
   Thruster leftVertical2(4);
   Thruster rightVertical2(5);
-  Thruster rearLeftHorizontal(6);
-  Thruster rearRightHorizontal(7);
 
   leftVertical.setInverted(true);
   rightVertical2.setInverted(true);
-  // Front pair: both not inverted → CW for forward, CCW for backward
-  // Rear pair:  both inverted     → CCW for forward, CW for backward
+  // Front horizontal pair: not inverted → CW for forward
+  // Rear  horizontal pair: inverted     → CCW for forward
   rearLeftHorizontal.setInverted(true);
   rearRightHorizontal.setInverted(true);
 
