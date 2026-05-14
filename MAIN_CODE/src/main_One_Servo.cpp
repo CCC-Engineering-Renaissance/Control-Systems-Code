@@ -36,15 +36,15 @@ namespace {
 
   constexpr int   kChClawRotate = 8;
   constexpr int   kChClawOpen   = 9;
-  constexpr int   kClawRest     = 1500;
+  constexpr int   kClawRest     = 992;
   // Servo rated for 100° total travel. rest=1500 µs is the physical midpoint.
   // pos=-1 → one extreme (startup), pos=+1 → other extreme; full sweep = 100°.
   // PCA9685: set_pwm_freq(50) uses prescale=121 (rounded from 121.07), giving
   // actual freq = 25e6/(4096×122) = 50.028 Hz → pulses ~0.056% short; corrected:
   // 50/90 × 500 × (50.028/50.0) = 277.9 → 278 µs per side.
-  constexpr int   kClawOffset   = 278;   // 50° per side = 100° total travel
-  constexpr int   kClawMinUs    = 1222;  // 1500 - 278
-  constexpr int   kClawMaxUs    = 1778;  // 1500 + 278
+  constexpr int   kClawOffset   = 508;   // 50° per side = 100° total travel
+  constexpr int   kClawMinUs    = 992;  // 1500 - 278
+  constexpr int   kClawMaxUs    = 2008;  // 1500 + 278
   constexpr float kClawSpeed    = 1.5f;  // full travel in ~0.67 s at full button press
 
   void signalHandler(int) { keepRunning = 0; }
