@@ -189,6 +189,7 @@ int main() {
   float clawOpenPos   = 0.0f;
 
   auto lastTime = std::chrono::steady_clock::now();
+  bool wasWaiting = true;
 
   try {
   while (keepRunning) {
@@ -212,8 +213,10 @@ int main() {
       pitchPID.reset();
       rollPID.reset();
       lastTime = std::chrono::steady_clock::now();
-      std::cout << "Waiting for controller packets...\r";
-      std::cout.flush();
+      if (!wasWaiting) {
+        std::cout << "Waiting for controller packets...\n";
+        wasWaiting = true;
+      }
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
       continue;
     }
@@ -222,6 +225,11 @@ int main() {
     float dt = std::chrono::duration<float>(now - lastTime).count();
     lastTime  = now;
     dt        = std::min(dt, kMaxDt);
+
+    if (wasWaiting) {
+      std::cout << "Controller packet received.\n";
+      wasWaiting = false;
+    }
 
     const POVState input = get_State();
 
@@ -275,9 +283,6 @@ int main() {
     setPowerThruster(Config::kLeftVertical2,        leftVertical2,        output.leftVertical2,        driver);
     setPowerThruster(Config::kRightVertical2,       rightVertical2,       output.rightVertical2,       driver);
 
-    std::cout << "ROV running | Servo1=" << clawRotatePos
-              << " Servo2=" << clawOpenPos << "    \r";
-    std::cout.flush();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   } catch (const std::exception& e) {
