@@ -257,6 +257,7 @@ int main() {
 
     // When PID is active, zero out the raw stick so they don't fight each other.
     POVState mixInput = input;
+    mixInput.forward = -mixInput.forward;
     if (Config::kPID && input.als) {
       mixInput.yaw   = 0.0f;
       mixInput.pitch = 0.0f;
