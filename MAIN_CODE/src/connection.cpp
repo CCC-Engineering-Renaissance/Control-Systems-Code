@@ -1,15 +1,20 @@
 #include "connection.h"
 
-#include <boost/asio.hpp> // UDP socket
+#include <boost/asio.hpp>
+#include <atomic>
+#include <cerrno>
 #include <chrono>
+#include <cstring>
 #include <iostream>
-#include <mutex> // used for thread safety 
+#include <mutex>
 #include <sstream>
 #include <string>
+#include <sys/select.h>
 
 using boost::asio::ip::udp;
 
 static boost::asio::io_context io_context;
+static std::atomic<bool> g_stop{false};
 
 POVState state{};
 
@@ -64,63 +69,68 @@ void set_State(const POVState& s){
 }
 
 void stopServer() {
-  io_context.stop();
+  g_stop.store(true, std::memory_order_relaxed);
 }
 
 //        UDP RECEIVER
 
 
-void server(unsigned short port){
-
+void server(unsigned short port) {
   try {
+    g_stop.store(false, std::memory_order_relaxed);
 
     udp::socket sock(io_context, udp::endpoint(udp::v4(), port));
-     
-    for(;;) {
+    sock.non_blocking(true);
+    int fd = static_cast<int>(sock.native_handle());
 
-      char data[1024];
+    for (;;) {
+      if (g_stop.load(std::memory_order_relaxed)) break;
 
-      udp::endpoint remote_endpoint;
-      boost::system::error_code error;
+      // Wait up to 100 ms for a datagram to arrive.
+      fd_set read_fds;
+      FD_ZERO(&read_fds);
+      FD_SET(fd, &read_fds);
+      struct timeval tv;
+      tv.tv_sec  = 0;
+      tv.tv_usec = 100'000;  // 100 ms
 
-      //receive one UDP datagram (blocking)
-    std::size_t length = sock.receive_from(boost::asio::buffer(data), remote_endpoint, 0, error);
+      int ready = select(fd + 1, &read_fds, nullptr, nullptr, &tv);
 
-  //   Ignore oversized error messages but throw on any other errors 
-      if(error && error != boost::asio::error::message_size) {
-
-        throw boost::system::system_error(error);
-
+      if (ready < 0) {
+        if (errno == EINTR) continue;  // signal interrupted select — retry
+        throw std::runtime_error(std::string("select() failed: ") + std::strerror(errno));
       }
 
-      // convert to string for parsing with sstream
+      if (ready == 0) continue;  // timeout — loop back and re-check g_stop
+
+      // A datagram is waiting; receive_from returns immediately (non-blocking).
+      char data[1024];
+      udp::endpoint remote_endpoint;
+      boost::system::error_code error;
+      std::size_t length = sock.receive_from(
+          boost::asio::buffer(data), remote_endpoint, 0, error);
+
+      if (error == boost::asio::error::would_block) continue;
+      if (error && error != boost::asio::error::message_size)
+        throw boost::system::system_error(error);
+
       std::string msg(data, length);
       std::stringstream ss(msg);
 
-      // Prevent partially overwriting global state if the packet isnt fully developed by parsing into a temporary state
       POVState temp{};
       int alsInt = 0;
 
-      // if (bad packet){ ignore it and we can keep the last good state} 
       if (!(ss >> temp.forward >> temp.strafe >> temp.vertical >> temp.yaw >> temp.pitch >> temp.roll
-             >> temp.clawRotate >> temp.clawOpen >> temp.pitchAngle
-             >> temp.yawAngle >> alsInt)) {
-        
-        continue; // ignore it
-
+               >> temp.clawRotate >> temp.clawOpen >> temp.pitchAngle
+               >> temp.yawAngle >> alsInt)) {
+        continue;  // malformed packet — keep last good state
       }
 
-      // convert last field (0/1) to bool 
       temp.als = (alsInt != 0);
-
-      // commit as one update (lock + timestamp)
       set_State(temp);
-
-    }//for{;;}
-
-  }/*try*/ catch (std::exception& e) {
-    // if this comes up, control loop should do isFressh()==false and stop
-           std::cerr << "Server error: " << e.what() << std::endl;
-  } 
-}// void server()
+    }
+  } catch (std::exception& e) {
+    std::cerr << "Server error: " << e.what() << std::endl;
+  }
+}  // void server()
 
