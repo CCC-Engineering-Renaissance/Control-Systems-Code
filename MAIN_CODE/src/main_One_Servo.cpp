@@ -143,11 +143,10 @@ int main() {
     clawRotate, clawOpen};
 
   // ── ESC Calibration sequence ─────────────────────────────────────────────
-  // Must happen AFTER thruster objects are declared
-  std::cout << "Starting ESC calibration sequence...\n";
+  std::cout << "CALIBRATION START\n";
 
   // Step 1: Send max throttle
-  std::cout << "  Calibration: max throttle...\n";
+  std::cout << "  Sending MAX throttle...\n";
   setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  1.0f, driver);
   setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, 1.0f, driver);
   setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   1.0f, driver);
@@ -156,10 +155,11 @@ int main() {
   setPowerThruster(Config::kRightVertical,        rightVertical,        1.0f, driver);
   setPowerThruster(Config::kLeftVertical2,        leftVertical2,        1.0f, driver);
   setPowerThruster(Config::kRightVertical2,       rightVertical2,       1.0f, driver);
+  std::cout << "  MAX PWM value: " << frontLeftHorizontal.getPWM() << "us\n";
   std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
   // Step 2: Send min throttle
-  std::cout << "  Calibration: min throttle...\n";
+  std::cout << "  Sending MIN throttle...\n";
   setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  -1.0f, driver);
   setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, -1.0f, driver);
   setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   -1.0f, driver);
@@ -168,10 +168,11 @@ int main() {
   setPowerThruster(Config::kRightVertical,        rightVertical,        -1.0f, driver);
   setPowerThruster(Config::kLeftVertical2,        leftVertical2,        -1.0f, driver);
   setPowerThruster(Config::kRightVertical2,       rightVertical2,       -1.0f, driver);
+  std::cout << "  MIN PWM value: " << frontLeftHorizontal.getPWM() << "us\n";
   std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
-  // Step 3: Send neutral - ESCs now calibrated and armed
-  std::cout << "  Calibration: neutral...\n";
+  // Step 3: Send neutral
+  std::cout << "  Sending NEUTRAL...\n";
   stopThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  driver);
   stopThruster(Config::kFrontRightHorizontal, frontRightHorizontal, driver);
   stopThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   driver);
@@ -182,8 +183,8 @@ int main() {
   stopThruster(Config::kRightVertical2,       rightVertical2,       driver);
   centerClaw(Config::kClawRotate, clawRotate, driver);
   centerClaw(Config::kClawOpen,   clawOpen,   driver);
-
-  std::cout << "ESC calibration complete, waiting for arm...\n";
+  std::cout << "  NEUTRAL PWM value: " << frontLeftHorizontal.getPWM() << "us\n";
+  std::cout << "CALIBRATION COMPLETE - waiting for arm...\n";
   std::this_thread::sleep_for(std::chrono::milliseconds(kArmDelayMs));
   std::cout << "ROV is ON\n";
 
