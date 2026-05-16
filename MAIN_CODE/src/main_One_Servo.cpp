@@ -275,14 +275,14 @@ int main() {
     const Thruster_Outputs output =
         mixer.mix(mixInput, yawPIDOutput, pitchPIDOutput, rollPIDOutput);
 
-    setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  output.frontLeftHorizontal,  driver);
-    setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, output.frontRightHorizontal, driver);
-    setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   output.rearLeftHorizontal,   driver);
-    setPowerThruster(Config::kRearRightHorizontal,  rearRightHorizontal,  output.rearRightHorizontal,  driver);
-    setPowerThruster(Config::kLeftVertical,         leftVertical,         output.leftVertical,         driver);
-    setPowerThruster(Config::kRightVertical,        rightVertical,        output.rightVertical,        driver);
-    setPowerThruster(Config::kLeftVertical2,        leftVertical2,        output.leftVertical2,        driver);
-    setPowerThruster(Config::kRightVertical2,       rightVertical2,       output.rightVertical2,       driver);
+    setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  output.frontLeftHorizontal * 0.80f,  driver);
+    setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, output.frontRightHorizontal * 0.80f, driver);
+    setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   output.rearLeftHorizontal * 0.80f,   driver);
+    setPowerThruster(Config::kRearRightHorizontal,  rearRightHorizontal,  output.rearRightHorizontal * 0.80f,  driver);
+    setPowerThruster(Config::kLeftVertical,         leftVertical,         output.leftVertical * 0.80f,         driver);
+    setPowerThruster(Config::kRightVertical,        rightVertical,        output.rightVertical * 0.80f,        driver);
+    setPowerThruster(Config::kLeftVertical2,        leftVertical2,        output.leftVertical2 * 0.80f,        driver);
+    setPowerThruster(Config::kRightVertical2,       rightVertical2,       output.rightVertical2 * 0.80f,       driver);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
