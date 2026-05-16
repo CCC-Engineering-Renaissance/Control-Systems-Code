@@ -37,7 +37,7 @@ namespace {
   constexpr int   kChClawRotate = 8;
   constexpr int   kChClawOpen   = 9;
   constexpr int   kClawOffset   = 364;   // 50° per side = 100° total travel
-  constexpr int   kClawRest     = 1500 - (0.6 * kClawOffset);
+  constexpr int   kClawRest     = 1500 - (0 * kClawOffset);
   // Servo rated for 100° total travel. rest=1500 µs is the physical midpoint.
   // pos=-1 → one extreme (startup), pos=+1 → other extreme; full sweep = 100°.
   // PCA9685: set_pwm_freq(50) uses prescale=121 (rounded from 121.07), giving
