@@ -161,7 +161,7 @@ def main():
             if joyROV.B == 1:
                 slow_mode = False
 
-            scale = 0.5 if slow_mode else 0.75
+            scale = 0.35 if slow_mode else 0.75
 
             # ── ROV axes ──────────────────────────────────────────────
             ljy = joyROV.axis("LeftJoystickY",  dz=0.10, factor=1.0)  # forward/backward
