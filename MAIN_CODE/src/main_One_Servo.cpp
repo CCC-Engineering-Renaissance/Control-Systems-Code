@@ -18,8 +18,8 @@ namespace Config {
   constexpr bool kRearLeftHorizontal   = true;
   constexpr bool kRearRightHorizontal  = true;
   constexpr bool kLeftVertical         = true;
-  constexpr bool kRightVertical        = false; // Thruster 3
-  constexpr bool kLeftVertical2        = false; // Thruster 4 
+  constexpr bool kRightVertical        = false;
+  constexpr bool kLeftVertical2        = false;
   constexpr bool kRightVertical2       = true;
   constexpr bool kClawRotate           = true;
   constexpr bool kClawOpen             = true;
@@ -36,16 +36,11 @@ namespace {
 
   constexpr int   kChClawRotate = 8;
   constexpr int   kChClawOpen   = 9;
-  constexpr int   kClawOffset   = 364;   // 50° per side = 100° total travel
+  constexpr int   kClawOffset   = 364;
   constexpr int   kClawRest     = 1500 - (0 * kClawOffset);
-  // Servo rated for 100° total travel. rest=1500 µs is the physical midpoint.
-  // pos=-1 → one extreme (startup), pos=+1 → other extreme; full sweep = 100°.
-  // PCA9685: set_pwm_freq(50) uses prescale=121 (rounded from 121.07), giving
-  // actual freq = 25e6/(4096×122) = 50.028 Hz → pulses ~0.056% short; corrected:
-  // 50/90 × 500 × (50.028/50.0) = 277.9 → 278 µs per side.
-  constexpr int   kClawMinUs    = kClawOffset;  // 1500 - 364
-  constexpr int   kClawMaxUs    = 1500 + kClawOffset;  // 1500 + 364
-  constexpr float kClawSpeed    = 1.5f;  // full travel in ~0.67 s at full button press
+  constexpr int   kClawMinUs    = kClawOffset;
+  constexpr int   kClawMaxUs    = 1500 + kClawOffset;
+  constexpr float kClawSpeed    = 1.5f;
 
   void signalHandler(int) { keepRunning = 0; }
 }
@@ -69,7 +64,6 @@ int main() {
   std::signal(SIGHUP,  signalHandler);
   std::signal(SIGQUIT, signalHandler);
   std::cout << "ROV starting...\n";
-  std::cout << "Listening for UDP on port " << kPort << "\n";
 
   std::cout << "── Active hardware ──────────────────\n";
   std::cout << "  FrontLeftH  : " << (Config::kFrontLeftHorizontal  ? "ON" : "OFF") << "\n";
@@ -100,36 +94,15 @@ int main() {
   driver.set_pwm_freq(50.0);
   std::cout << "PCA9685 initialized on /dev/i2c-1 at address 0x40\n";
 
+  // Let PCA9685 oscillator stabilize before doing anything
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-// Send max - begin calibration
-setPowerThruster(true, frontLeftHorizontal, 1.0f, driver);
-setPowerThruster(true, frontRightHorizontal, 1.0f, driver);
-// ... all thrusters
-std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-
-// Send min
-setPowerThruster(true, frontLeftHorizontal, -1.0f, driver);
-// ... all thrusters
-std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-
-// Send neutral - ESCs now calibrated and armed
-stopThruster(true, frontLeftHorizontal, driver);
-// ... all thrusters
-std::this_thread::sleep_for(std::chrono::milliseconds(3000));
-
-  // Horizontal thrusters (X-frame, 45° mount)
-  // Control convention: +forward = fwd, +strafe = right, +yaw = turn right
+  // ── Thruster & Claw declarations ─────────────────────────────────────────
   Thruster frontLeftHorizontal(0);
   Thruster frontRightHorizontal(1);
   Thruster rearLeftHorizontal(6);
   Thruster rearRightHorizontal(7);
 
-  // Vertical thrusters
-  // ch2/ch3 = front-left/front-right verticals  (additive pitch side)
-  // ch4/ch5 = rear-left/rear-right  verticals   (subtractive pitch side)
-  // Control convention: +pitch = nose up, -pitch = nose down
-  //   Right stick up → sends negative pitch → nose dips down
   Thruster leftVertical(2);
   Thruster rightVertical(3);
   Thruster leftVertical2(4);
@@ -137,8 +110,6 @@ std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 
   leftVertical.setInverted(true);
   rightVertical2.setInverted(true);
-  // Front horizontal pair: not inverted → CW for forward
-  // Rear  horizontal pair: inverted     → CCW for forward
   rearLeftHorizontal.setInverted(true);
   rearRightHorizontal.setInverted(true);
 
@@ -148,7 +119,7 @@ std::this_thread::sleep_for(std::chrono::milliseconds(3000));
   Claw clawOpen(kChClawOpen, kClawRest, kClawOffset);
   clawOpen.setLimits(kClawMinUs, kClawMaxUs);
 
-  // Commands all channels to neutral on any exit path (exception, signal, or normal return).
+  // ── SafeStop guard ───────────────────────────────────────────────────────
   struct SafeStop {
     PiPCA9685::PCA9685& drv;
     Thruster &flh, &frh, &rlh, &rrh, &lv, &rv, &lv2, &rv2;
@@ -171,6 +142,36 @@ std::this_thread::sleep_for(std::chrono::milliseconds(3000));
     leftVertical, rightVertical, leftVertical2, rightVertical2,
     clawRotate, clawOpen};
 
+  // ── ESC Calibration sequence ─────────────────────────────────────────────
+  // Must happen AFTER thruster objects are declared
+  std::cout << "Starting ESC calibration sequence...\n";
+
+  // Step 1: Send max throttle
+  std::cout << "  Calibration: max throttle...\n";
+  setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  1.0f, driver);
+  setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, 1.0f, driver);
+  setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   1.0f, driver);
+  setPowerThruster(Config::kRearRightHorizontal,  rearRightHorizontal,  1.0f, driver);
+  setPowerThruster(Config::kLeftVertical,         leftVertical,         1.0f, driver);
+  setPowerThruster(Config::kRightVertical,        rightVertical,        1.0f, driver);
+  setPowerThruster(Config::kLeftVertical2,        leftVertical2,        1.0f, driver);
+  setPowerThruster(Config::kRightVertical2,       rightVertical2,       1.0f, driver);
+  std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+  // Step 2: Send min throttle
+  std::cout << "  Calibration: min throttle...\n";
+  setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  -1.0f, driver);
+  setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, -1.0f, driver);
+  setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   -1.0f, driver);
+  setPowerThruster(Config::kRearRightHorizontal,  rearRightHorizontal,  -1.0f, driver);
+  setPowerThruster(Config::kLeftVertical,         leftVertical,         -1.0f, driver);
+  setPowerThruster(Config::kRightVertical,        rightVertical,        -1.0f, driver);
+  setPowerThruster(Config::kLeftVertical2,        leftVertical2,        -1.0f, driver);
+  setPowerThruster(Config::kRightVertical2,       rightVertical2,       -1.0f, driver);
+  std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+  // Step 3: Send neutral - ESCs now calibrated and armed
+  std::cout << "  Calibration: neutral...\n";
   stopThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  driver);
   stopThruster(Config::kFrontRightHorizontal, frontRightHorizontal, driver);
   stopThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   driver);
@@ -180,9 +181,9 @@ std::this_thread::sleep_for(std::chrono::milliseconds(3000));
   stopThruster(Config::kLeftVertical2,        leftVertical2,        driver);
   stopThruster(Config::kRightVertical2,       rightVertical2,       driver);
   centerClaw(Config::kClawRotate, clawRotate, driver);
-  centerClaw(Config::kClawOpen,  clawOpen,  driver);
+  centerClaw(Config::kClawOpen,   clawOpen,   driver);
 
-  std::cout << "Active channels set to neutral, waiting for ESCs to arm...\n";
+  std::cout << "ESC calibration complete, waiting for arm...\n";
   std::this_thread::sleep_for(std::chrono::milliseconds(kArmDelayMs));
   std::cout << "ROV is ON\n";
 
@@ -202,7 +203,6 @@ std::this_thread::sleep_for(std::chrono::milliseconds(3000));
     std::cout << "IMU initialized at 0x68\n";
   }
 
-  // clawRotatePos starts at -1 (one extreme); user rotates up to +1 (other extreme, 100° away).
   float clawRotatePos = -1.0f;
   float clawOpenPos   = 0.0f;
 
@@ -211,9 +211,6 @@ std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 
   try {
   while (keepRunning) {
-    // Always re-send current servo position so the PCA9685 keeps driving the
-    // servo even when stalled against a PVC pipe or spinning gear — this
-    // prevents the servo from going limp if the main loop stalls briefly.
     setPosClaw(Config::kClawRotate, clawRotate, clawRotatePos, driver);
     setPosClaw(Config::kClawOpen,  clawOpen,  clawOpenPos,  driver);
 
@@ -226,7 +223,6 @@ std::this_thread::sleep_for(std::chrono::milliseconds(3000));
       stopThruster(Config::kRightVertical,        rightVertical,        driver);
       stopThruster(Config::kLeftVertical2,        leftVertical2,        driver);
       stopThruster(Config::kRightVertical2,       rightVertical2,       driver);
-      // Servos already written above — hold grip while waiting for packets.
       yawPID.reset();
       pitchPID.reset();
       rollPID.reset();
@@ -251,8 +247,6 @@ std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 
     const POVState input = get_State();
 
-    // Incremental servo position, dt-scaled speed, clamped to [-1, 1].
-    // Input is -1 / 0 / +1 from thruster.py (Y/B and X/A buttons on claw controller).
     clawRotatePos = std::clamp(clawRotatePos + input.clawRotate * kClawSpeed * dt, -1.0f, 1.0f);
     clawOpenPos   = std::clamp(clawOpenPos   + input.clawOpen   * kClawSpeed * dt, -1.0f, 1.0f);
 
@@ -281,7 +275,6 @@ std::this_thread::sleep_for(std::chrono::milliseconds(3000));
       rollPID.reset();
     }
 
-    // When PID is active, zero out the raw stick so they don't fight each other.
     POVState mixInput = input;
     mixInput.forward = -mixInput.forward;
     mixInput.yaw = -mixInput.yaw;
@@ -307,7 +300,6 @@ std::this_thread::sleep_for(std::chrono::milliseconds(3000));
   } catch (const std::exception& e) {
     std::cerr << "\nControl loop exception: " << e.what() << "\n";
   }
-  // SafeStop guard destructs here, commanding all channels to neutral.
 
   stopServer();
   net.join();
