@@ -41,6 +41,8 @@ namespace {
   constexpr int   kClawMinUs    = kClawOffset;
   constexpr int   kClawMaxUs    = 1500 + kClawOffset;
   constexpr float kClawSpeed    = 1.5f;
+  constexpr float kMaxThrustCoeff = 0.65f;
+  constexpr float kSlowModePercent = 0.2f;
 
   void signalHandler(int) { keepRunning = 0; }
 }
@@ -290,14 +292,14 @@ int main() {
     const Thruster_Outputs output =
         mixer.mix(mixInput, yawPIDOutput, pitchPIDOutput, rollPIDOutput);
 
-    setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  output.frontLeftHorizontal * 0.65f,  driver);
-    setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, output.frontRightHorizontal * 0.65f, driver);
-    setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   output.rearLeftHorizontal * 0.65f,   driver);
-    setPowerThruster(Config::kRearRightHorizontal,  rearRightHorizontal,  output.rearRightHorizontal * 0.65f,  driver);
-    setPowerThruster(Config::kLeftVertical,         leftVertical,         output.leftVertical * 0.65f,         driver);
-    setPowerThruster(Config::kRightVertical,        rightVertical,        output.rightVertical * 0.65f,        driver);
-    setPowerThruster(Config::kLeftVertical2,        leftVertical2,        output.leftVertical2 * 0.65f,        driver);
-    setPowerThruster(Config::kRightVertical2,       rightVertical2,       output.rightVertical2 * 0.65f,       driver);
+    setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  output.frontLeftHorizontal * kMaxThrustCoeff,  driver);
+    setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, output.frontRightHorizontal * kMaxThrustCoeff, driver);
+    setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   output.rearLeftHorizontal * kMaxThrustCoeff,   driver);
+    setPowerThruster(Config::kRearRightHorizontal,  rearRightHorizontal,  output.rearRightHorizontal * kMaxThrustCoeff,  driver);
+    setPowerThruster(Config::kLeftVertical,         leftVertical,         output.leftVertical * kMaxThrustCoeff,         driver);
+    setPowerThruster(Config::kRightVertical,        rightVertical,        output.rightVertical * kMaxThrustCoeff,        driver);
+    setPowerThruster(Config::kLeftVertical2,        leftVertical2,        output.leftVertical2 * kMaxThrustCoeff,        driver);
+    setPowerThruster(Config::kRightVertical2,       rightVertical2,       output.rightVertical2 * kMaxThrustCoeff,       driver);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
