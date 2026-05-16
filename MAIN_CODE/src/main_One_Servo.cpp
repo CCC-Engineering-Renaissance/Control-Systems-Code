@@ -100,6 +100,24 @@ int main() {
   driver.set_pwm_freq(50.0);
   std::cout << "PCA9685 initialized on /dev/i2c-1 at address 0x40\n";
 
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+// Send max - begin calibration
+setPowerThruster(true, frontLeftHorizontal, 1.0f, driver);
+setPowerThruster(true, frontRightHorizontal, 1.0f, driver);
+// ... all thrusters
+std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+// Send min
+setPowerThruster(true, frontLeftHorizontal, -1.0f, driver);
+// ... all thrusters
+std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+// Send neutral - ESCs now calibrated and armed
+stopThruster(true, frontLeftHorizontal, driver);
+// ... all thrusters
+std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+
   // Horizontal thrusters (X-frame, 45° mount)
   // Control convention: +forward = fwd, +strafe = right, +yaw = turn right
   Thruster frontLeftHorizontal(0);
