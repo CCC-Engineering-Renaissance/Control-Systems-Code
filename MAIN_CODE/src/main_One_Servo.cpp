@@ -18,8 +18,8 @@ namespace Config {
   constexpr bool kRearLeftHorizontal   = true;
   constexpr bool kRearRightHorizontal  = true;
   constexpr bool kLeftVertical         = true;
-  constexpr bool kRightVertical        = true;
-  constexpr bool kLeftVertical2        = true;
+  constexpr bool kRightVertical        = false; // Thruster 3
+  constexpr bool kLeftVertical2        = false; // Thruster 4 
   constexpr bool kRightVertical2       = true;
   constexpr bool kClawRotate           = true;
   constexpr bool kClawOpen             = true;
@@ -266,6 +266,7 @@ int main() {
     // When PID is active, zero out the raw stick so they don't fight each other.
     POVState mixInput = input;
     mixInput.forward = -mixInput.forward;
+    mixInput.yaw = -mixInput.yaw;
     if (Config::kPID && input.als) {
       mixInput.yaw   = 0.0f;
       mixInput.pitch = 0.0f;
