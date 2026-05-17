@@ -68,8 +68,8 @@ Thruster::Thruster()
     offset(350),      // max deviation around neutral: 1500 ± 350 = [1150, 1850]
     pwm(1500),        // start at neutral so state is safe by default
     power(0.0f),      // normalized power at neutral
-    min_us(1188),     // ESC low safety limit
-    max_us(1812) {    // ESC high safety limit
+    min_us(1228),     // ESC low safety limit
+    max_us(1772) {    // ESC high safety limit
   // No hardware action here; constructors should not talk to the driver.
 }
 
@@ -79,8 +79,8 @@ Thruster::Thruster(int pin_in)
     offset(350),
     pwm(1500),
     power(0.0f),
-    min_us(1188),
-    max_us(1812) {
+    min_us(1228),
+    max_us(1772) {
   // Fail fast if the channel is invalid.
   if (!isCorrectPin(pin)) {
     throw std::invalid_argument("Thruster pin must be in [0,15]");
@@ -93,8 +93,8 @@ Thruster::Thruster(int pin_in, int rest_in)
     offset(350),
     pwm(rest_in),     // start at the configured neutral
     power(0.0f),
-    min_us(1188),
-    max_us(1812) {
+    min_us(1228),
+    max_us(1772) {
   if (!isCorrectPin(pin)) {
     throw std::invalid_argument("Thruster pin must be in [0,15]");
   }
@@ -108,8 +108,8 @@ Thruster::Thruster(int pin_in, int rest_in, int offset_in)
     offset(std::max(0, offset_in)), // prevent negative offset (nonsensical)
     pwm(rest_in),
     power(0.0f),
-    min_us(1188),
-    max_us(1812) {
+    min_us(1228),
+    max_us(1772) {
   if (!isCorrectPin(pin)) {
     throw std::invalid_argument("Thruster pin must be in [0,15]");
   }
