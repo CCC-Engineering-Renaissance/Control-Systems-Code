@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <iostream>
@@ -11,6 +12,7 @@
 #include "connection.h"
 #include "PID.h"
 #include "IMU.h"
+#include "Depth_Sensor.h"
 
 namespace Config {
   constexpr bool kFrontLeftHorizontal  = true;
@@ -25,6 +27,7 @@ namespace Config {
   constexpr bool kClawOpen             = true;
   constexpr bool kPID                  = false;
   constexpr bool kIMU                  = false;
+  constexpr bool kDepthSensor          = true;
 }
 
 namespace {
@@ -45,6 +48,29 @@ namespace {
   constexpr float kSlowModePercent = 0.2f;
 
   void signalHandler(int) { keepRunning = 0; }
+
+  std::atomic<float> gDepthMeters{0.0f};
+  std::atomic<float> gTempC{0.0f};
+  std::atomic<bool>  gDepthReady{false};
+}
+
+static void depthSensorThread(DepthSensor& sensor) {
+  if (!sensor.init()) {
+    std::cerr << "Depth sensor init failed — depth readings unavailable\n";
+    return;
+  }
+  // Zero depth at the surface using the first successful read
+  if (sensor.read()) {
+    sensor.setSurfacePressure(sensor.getPressureMbar());
+    std::cout << "Depth sensor zeroed at " << sensor.getPressureMbar() << " mbar\n";
+  }
+  while (keepRunning) {
+    if (sensor.read()) {
+      gDepthMeters.store(sensor.getDepthMeters(),   std::memory_order_relaxed);
+      gTempC      .store(sensor.getTemperatureC(),   std::memory_order_relaxed);
+      gDepthReady .store(true,                       std::memory_order_release);
+    }
+  }
 }
 
 static void stopThruster(bool enabled, Thruster& t, PiPCA9685::PCA9685& d) {
@@ -80,6 +106,7 @@ int main() {
   std::cout << "  Servo2 (ch9): " << (Config::kClawOpen             ? "ON" : "OFF") << "\n";
   std::cout << "  PID         : " << (Config::kPID                  ? "ON" : "OFF") << "\n";
   std::cout << "  IMU         : " << (Config::kIMU                  ? "ON" : "OFF") << "\n";
+  std::cout << "  DepthSensor : " << (Config::kDepthSensor          ? "ON" : "OFF") << "\n";
   std::cout << "─────────────────────────────────────\n";
 
   std::thread net([] {
@@ -209,6 +236,13 @@ int main() {
     std::cout << "IMU initialized at 0x68\n";
   }
 
+  DepthSensor depthSensor;
+  std::thread depthThread;
+  if (Config::kDepthSensor) {
+    depthThread = std::thread(depthSensorThread, std::ref(depthSensor));
+    std::cout << "Depth sensor thread started on /dev/i2c-1 at 0x76\n";
+  }
+
   float clawRotatePos = -1.0f;
   float clawOpenPos   = 0.0f;
 
@@ -301,6 +335,12 @@ int main() {
     setPowerThruster(Config::kLeftVertical2,        leftVertical2,        output.leftVertical2 * kMaxThrustCoeff,        driver);
     setPowerThruster(Config::kRightVertical2,       rightVertical2,       output.rightVertical2 * kMaxThrustCoeff,       driver);
 
+    if (Config::kDepthSensor && gDepthReady.load(std::memory_order_acquire)) {
+      std::cout << "Depth: " << gDepthMeters.load(std::memory_order_relaxed) << " m"
+                << "  Temp: " << gTempC.load(std::memory_order_relaxed) << " C\n";
+      gDepthReady.store(false, std::memory_order_relaxed);
+    }
+
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   } catch (const std::exception& e) {
@@ -309,6 +349,7 @@ int main() {
 
   stopServer();
   net.join();
+  if (Config::kDepthSensor && depthThread.joinable()) depthThread.join();
   std::cout << "\nExiting safely.\n";
   return 0;
 }
