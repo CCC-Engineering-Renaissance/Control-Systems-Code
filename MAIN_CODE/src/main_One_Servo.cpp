@@ -37,7 +37,7 @@ namespace {
   constexpr float kMaxDt                = 0.1f;
   constexpr int   kArmDelayMs           = 3000;
 
-  constexpr int   kChClawRotate = 8;
+  constexpr int   kChClawRotate = 10;
   constexpr int   kChClawOpen   = 9;
   constexpr int   kClawOffset   = 364;
   constexpr int   kClawRest     = 1500 - (0 * kClawOffset);
@@ -102,7 +102,7 @@ int main() {
   std::cout << "  RightVert   : " << (Config::kRightVertical        ? "ON" : "OFF") << "\n";
   std::cout << "  LeftVert2   : " << (Config::kLeftVertical2        ? "ON" : "OFF") << "\n";
   std::cout << "  RightVert2  : " << (Config::kRightVertical2       ? "ON" : "OFF") << "\n";
-  std::cout << "  Servo1 (ch8): " << (Config::kClawRotate           ? "ON" : "OFF") << "\n";
+  std::cout << "  SpinClaw(ch10): " << (Config::kClawRotate           ? "ON" : "OFF") << "\n";
   std::cout << "  Servo2 (ch9): " << (Config::kClawOpen             ? "ON" : "OFF") << "\n";
   std::cout << "  PID         : " << (Config::kPID                  ? "ON" : "OFF") << "\n";
   std::cout << "  IMU         : " << (Config::kIMU                  ? "ON" : "OFF") << "\n";
@@ -142,8 +142,7 @@ int main() {
   rearLeftHorizontal.setInverted(true);
   rearRightHorizontal.setInverted(true);
 
-  Claw clawRotate(kChClawRotate, kClawRest, kClawOffset);
-  clawRotate.setLimits(kClawMinUs, kClawMaxUs);
+  Thruster clawSpin(kChClawRotate);
 
   Claw clawOpen(kChClawOpen, kClawRest, kClawOffset);
   clawOpen.setLimits(kClawMinUs, kClawMaxUs);
@@ -151,8 +150,8 @@ int main() {
   // ── SafeStop guard ───────────────────────────────────────────────────────
   struct SafeStop {
     PiPCA9685::PCA9685& drv;
-    Thruster &flh, &frh, &rlh, &rrh, &lv, &rv, &lv2, &rv2;
-    Claw &cr, &cp;
+    Thruster &flh, &frh, &rlh, &rrh, &lv, &rv, &lv2, &rv2, &cs;
+    Claw &cp;
     ~SafeStop() noexcept {
       auto safe = [](auto fn) noexcept { try { fn(); } catch (...) {} };
       safe([&]{ stopThruster(Config::kFrontLeftHorizontal,  flh,  drv); });
@@ -163,13 +162,13 @@ int main() {
       safe([&]{ stopThruster(Config::kRightVertical,        rv,   drv); });
       safe([&]{ stopThruster(Config::kLeftVertical2,        lv2,  drv); });
       safe([&]{ stopThruster(Config::kRightVertical2,       rv2,  drv); });
-      safe([&]{ centerClaw(Config::kClawRotate, cr, drv); });
+      safe([&]{ stopThruster(Config::kClawRotate,           cs,   drv); });
       safe([&]{ centerClaw(Config::kClawOpen,   cp, drv); });
     }
   } guard{driver,
     frontLeftHorizontal, frontRightHorizontal, rearLeftHorizontal, rearRightHorizontal,
     leftVertical, rightVertical, leftVertical2, rightVertical2,
-    clawRotate, clawOpen};
+    clawSpin, clawOpen};
   /*
 
   // ── ESC Calibration sequence ─────────────────────────────────────────────
@@ -211,12 +210,19 @@ int main() {
   stopThruster(Config::kRightVertical,        rightVertical,        driver);
   stopThruster(Config::kLeftVertical2,        leftVertical2,        driver);
   stopThruster(Config::kRightVertical2,       rightVertical2,       driver);
-  centerClaw(Config::kClawRotate, clawRotate, driver);
-  centerClaw(Config::kClawOpen,   clawOpen,   driver);
+  stopThruster(Config::kClawRotate, clawSpin,  driver);
+  centerClaw(Config::kClawOpen,   clawOpen,  driver);
   std::cout << "  NEUTRAL PWM value: " << frontLeftHorizontal.getPWM() << "us\n";
   std::cout << "CALIBRATION COMPLETE - waiting for arm...\n";
   std::this_thread::sleep_for(std::chrono::milliseconds(kArmDelayMs));
  */
+
+  // Arm claw spin ESC: send neutral so the ESC can arm before accepting commands
+  if (Config::kClawRotate) {
+    clawSpin.stop(driver);
+    std::cout << "Claw spin ESC neutral sent. Waiting for ESC to arm...\n";
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+  }
 
   std::cout << "ROV is ON\n";
 
@@ -243,15 +249,13 @@ int main() {
     std::cout << "Depth sensor thread started on /dev/i2c-1 at 0x76\n";
   }
 
-  float clawRotatePos = -1.0f;
-  float clawOpenPos   = 0.0f;
+  float clawOpenPos = 0.0f;
 
   auto lastTime = std::chrono::steady_clock::now();
   bool wasWaiting = true;
 
   try {
   while (keepRunning) {
-    setPosClaw(Config::kClawRotate, clawRotate, clawRotatePos, driver);
     setPosClaw(Config::kClawOpen,  clawOpen,  clawOpenPos,  driver);
 
     if (!is_Fresh(kStalePacketMs)) {
@@ -263,6 +267,7 @@ int main() {
       stopThruster(Config::kRightVertical,        rightVertical,        driver);
       stopThruster(Config::kLeftVertical2,        leftVertical2,        driver);
       stopThruster(Config::kRightVertical2,       rightVertical2,       driver);
+      stopThruster(Config::kClawRotate,           clawSpin,             driver);
       yawPID.reset();
       pitchPID.reset();
       rollPID.reset();
@@ -287,8 +292,8 @@ int main() {
 
     const POVState input = get_State();
 
-    clawRotatePos = std::clamp(clawRotatePos + input.clawRotate * kClawSpeed * dt, -1.0f, 1.0f);
-    clawOpenPos   = std::clamp(clawOpenPos   + input.clawOpen   * kClawSpeed * dt, -1.0f, 1.0f);
+    setPowerThruster(Config::kClawRotate, clawSpin, input.clawRotate * kMaxThrustCoeff, driver);
+    clawOpenPos = std::clamp(clawOpenPos + input.clawOpen * kClawSpeed * dt, -1.0f, 1.0f);
 
     float measuredPitch = 0.0f;
     float measuredYaw   = 0.0f;
