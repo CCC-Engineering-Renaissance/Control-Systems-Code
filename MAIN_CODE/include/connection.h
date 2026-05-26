@@ -12,8 +12,9 @@ struct POVState{
   float pitch = 0.0f;
   float roll = 0.0f;
 
-  float clawRotate = 0.0f;
-  float clawOpen   = 0.0f;
+  float clawRotate     = 0.0f;
+  float clawOpen       = 0.0f;
+  float clawBrushless  = 0.0f;  // brushless motor on ch10
 
   float pitchAngle = 0.0f;
   float yawAngle = 0.0f;
