@@ -37,7 +37,7 @@ namespace {
   constexpr float kMaxDt                = 0.1f;
   constexpr int   kArmDelayMs           = 3000;
 
-  constexpr int   kChClawRotate = 10;
+  constexpr int   kChClawRotate = 8;
   constexpr int   kChClawOpen   = 9;
   constexpr int   kClawOffset   = 364;
   constexpr int   kClawRest     = 1500 - (0 * kClawOffset);
@@ -102,7 +102,7 @@ int main() {
   std::cout << "  RightVert   : " << (Config::kRightVertical        ? "ON" : "OFF") << "\n";
   std::cout << "  LeftVert2   : " << (Config::kLeftVertical2        ? "ON" : "OFF") << "\n";
   std::cout << "  RightVert2  : " << (Config::kRightVertical2       ? "ON" : "OFF") << "\n";
-  std::cout << "  SpinClaw(ch10): " << (Config::kClawRotate           ? "ON" : "OFF") << "\n";
+  std::cout << "  SpinClaw(ch8): " << (Config::kClawRotate            ? "ON" : "OFF") << "\n";
   std::cout << "  Servo2 (ch9): " << (Config::kClawOpen             ? "ON" : "OFF") << "\n";
   std::cout << "  PID         : " << (Config::kPID                  ? "ON" : "OFF") << "\n";
   std::cout << "  IMU         : " << (Config::kIMU                  ? "ON" : "OFF") << "\n";
@@ -222,6 +222,13 @@ int main() {
     clawSpin.stop(driver);
     std::cout << "Claw spin ESC neutral sent. Waiting for ESC to arm...\n";
     std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+    std::cout << "SpinClaw: running at 0.5 power for 2 seconds...\n";
+    clawSpin.setPower(0.5, driver);
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+    clawSpin.stop(driver);
+    std::cout << "SpinClaw: startup test done.\n";
   }
 
   std::cout << "ROV is ON\n";
