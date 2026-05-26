@@ -41,7 +41,7 @@ namespace {
   constexpr int   kClawMinUs    = kClawOffset;
   constexpr int   kClawMaxUs    = 1500 + kClawOffset;
   constexpr float kClawSpeed    = 1.5f;
-  constexpr float kMaxThrustCoeff = 0.50f;
+  constexpr float kMaxThrustCoeff = 0.8f;
   constexpr float kSlowModePercent = 0.2f;
 
   void signalHandler(int) { keepRunning = 0; }
