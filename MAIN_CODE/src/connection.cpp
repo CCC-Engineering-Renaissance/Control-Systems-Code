@@ -121,8 +121,8 @@ void server(unsigned short port) {
       int alsInt = 0;
 
       if (!(ss >> temp.forward >> temp.strafe >> temp.vertical >> temp.yaw >> temp.pitch >> temp.roll
-               >> temp.clawRotate >> temp.clawOpen >> temp.pitchAngle
-               >> temp.yawAngle >> alsInt)) {
+               >> temp.clawRotate >> temp.clawOpen >> temp.clawBrushless
+               >> temp.pitchAngle >> temp.yawAngle >> alsInt)) {
         continue;  // malformed packet — keep last good state
       }
 

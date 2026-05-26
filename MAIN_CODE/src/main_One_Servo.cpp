@@ -25,6 +25,7 @@ namespace Config {
   constexpr bool kRightVertical2       = true;
   constexpr bool kClawRotate           = true;
   constexpr bool kClawOpen             = true;
+  constexpr bool kClawBrushless        = true;   // brushless motor on ch10
   constexpr bool kPID                  = false;
   constexpr bool kIMU                  = false;
   constexpr bool kDepthSensor          = true;
@@ -37,8 +38,9 @@ namespace {
   constexpr float kMaxDt                = 0.1f;
   constexpr int   kArmDelayMs           = 3000;
 
-  constexpr int   kChClawRotate = 8;
-  constexpr int   kChClawOpen   = 9;
+  constexpr int   kChClawRotate     = 8;
+  constexpr int   kChClawOpen       = 9;
+  constexpr int   kChClawBrushless  = 10;  // third claw — brushless motor
   constexpr int   kClawOffset   = 364;
   constexpr int   kClawRest     = 1500 - (0 * kClawOffset);
   constexpr int   kClawMinUs    = kClawOffset;
@@ -102,8 +104,9 @@ int main() {
   std::cout << "  RightVert   : " << (Config::kRightVertical        ? "ON" : "OFF") << "\n";
   std::cout << "  LeftVert2   : " << (Config::kLeftVertical2        ? "ON" : "OFF") << "\n";
   std::cout << "  RightVert2  : " << (Config::kRightVertical2       ? "ON" : "OFF") << "\n";
-  std::cout << "  SpinClaw(ch8): " << (Config::kClawRotate            ? "ON" : "OFF") << "\n";
-  std::cout << "  Servo2 (ch9): " << (Config::kClawOpen             ? "ON" : "OFF") << "\n";
+  std::cout << "  SpinClaw(ch8) : " << (Config::kClawRotate            ? "ON" : "OFF") << "\n";
+  std::cout << "  Servo2  (ch9) : " << (Config::kClawOpen             ? "ON" : "OFF") << "\n";
+  std::cout << "  Brushless(ch10): " << (Config::kClawBrushless        ? "ON" : "OFF") << "\n";
   std::cout << "  PID         : " << (Config::kPID                  ? "ON" : "OFF") << "\n";
   std::cout << "  IMU         : " << (Config::kIMU                  ? "ON" : "OFF") << "\n";
   std::cout << "  DepthSensor : " << (Config::kDepthSensor          ? "ON" : "OFF") << "\n";
@@ -143,6 +146,7 @@ int main() {
   rearRightHorizontal.setInverted(true);
 
   Thruster clawSpin(kChClawRotate);
+  Thruster clawBrushless(kChClawBrushless);  // ch10 — brushless claw motor
 
   Claw clawOpen(kChClawOpen, kClawRest, kClawOffset);
   clawOpen.setLimits(kClawMinUs, kClawMaxUs);
@@ -150,7 +154,7 @@ int main() {
   // ── SafeStop guard ───────────────────────────────────────────────────────
   struct SafeStop {
     PiPCA9685::PCA9685& drv;
-    Thruster &flh, &frh, &rlh, &rrh, &lv, &rv, &lv2, &rv2, &cs;
+    Thruster &flh, &frh, &rlh, &rrh, &lv, &rv, &lv2, &rv2, &cs, &cb;
     Claw &cp;
     ~SafeStop() noexcept {
       auto safe = [](auto fn) noexcept { try { fn(); } catch (...) {} };
@@ -163,12 +167,13 @@ int main() {
       safe([&]{ stopThruster(Config::kLeftVertical2,        lv2,  drv); });
       safe([&]{ stopThruster(Config::kRightVertical2,       rv2,  drv); });
       safe([&]{ stopThruster(Config::kClawRotate,           cs,   drv); });
+      safe([&]{ stopThruster(Config::kClawBrushless,        cb,   drv); });
       safe([&]{ centerClaw(Config::kClawOpen,   cp, drv); });
     }
   } guard{driver,
     frontLeftHorizontal, frontRightHorizontal, rearLeftHorizontal, rearRightHorizontal,
     leftVertical, rightVertical, leftVertical2, rightVertical2,
-    clawSpin, clawOpen};
+    clawSpin, clawBrushless, clawOpen};
   /*
 
   // ── ESC Calibration sequence ─────────────────────────────────────────────
@@ -231,6 +236,14 @@ int main() {
     std::cout << "SpinClaw: startup test done.\n";
   }
 
+  // Arm brushless claw ESC on ch10
+  if (Config::kClawBrushless) {
+    clawBrushless.stop(driver);
+    std::cout << "Brushless claw (ch10) ESC neutral sent. Waiting for ESC to arm...\n";
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+    std::cout << "Brushless claw (ch10): armed and ready.\n";
+  }
+
   std::cout << "ROV is ON\n";
 
   std::cout << "── Network interfaces ───────────────\n";
@@ -275,6 +288,7 @@ int main() {
       stopThruster(Config::kLeftVertical2,        leftVertical2,        driver);
       stopThruster(Config::kRightVertical2,       rightVertical2,       driver);
       stopThruster(Config::kClawRotate,           clawSpin,             driver);
+      stopThruster(Config::kClawBrushless,        clawBrushless,        driver);
       yawPID.reset();
       pitchPID.reset();
       rollPID.reset();
@@ -299,7 +313,8 @@ int main() {
 
     const POVState input = get_State();
 
-    setPowerThruster(Config::kClawRotate, clawSpin, input.clawRotate * kMaxThrustCoeff, driver);
+    setPowerThruster(Config::kClawRotate,    clawSpin,       input.clawRotate    * kMaxThrustCoeff, driver);
+    setPowerThruster(Config::kClawBrushless, clawBrushless,  input.clawBrushless * kMaxThrustCoeff, driver);
     clawOpenPos = std::clamp(clawOpenPos + input.clawOpen * kClawSpeed * dt, -1.0f, 1.0f);
 
     float measuredPitch = 0.0f;
