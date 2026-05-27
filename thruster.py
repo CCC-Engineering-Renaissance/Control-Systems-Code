@@ -10,6 +10,7 @@ UDP packet format (space-separated, newline-terminated):
   clawRotate  clawOpen  clawBrushless  reserved0  reserved1  als
 """
 
+import json
 import socket
 import sys
 import time
@@ -20,6 +21,7 @@ import pygame
 # ---------------------------------------------------------------------------
 PI_IP    = "192.168.8.128"
 PORT     = 5005
+ALS_PORT = 5006
 SEND_HZ  = 30
 
 # ---------------------------------------------------------------------------
@@ -278,6 +280,8 @@ class XboxController:
     def LeftBumper(self) -> int:  return self.js.get_button(BTN_LB)
     @property
     def RightBumper(self) -> int: return self.js.get_button(BTN_RB)
+    @property
+    def START(self) -> int:       return self.js.get_button(BTN_START)
 
 
 # ---------------------------------------------------------------------------
@@ -343,7 +347,7 @@ _PACKET_FMT = (
     "%.4f %.4f %.4f "
     "%.4f %.4f %.4f "
     "%d %d %.4f "
-    "0.0 0.0 0\n"
+    "0.0 0.0 %d\n"
 )
 
 
@@ -352,6 +356,7 @@ def _build_packet(
     rjx: float, rjy: float,
     roll: float,
     claw_rotate: int, claw_open: int, claw_brushless: float,
+    als: int = 0,
 ) -> bytes:
     """Format the 12-field UDP datagram and return it as bytes.
 
@@ -361,7 +366,7 @@ def _build_packet(
     """
     return (_PACKET_FMT % (
         ljy, ljx, vert, rjx, rjy, roll,
-        claw_rotate, claw_open, claw_brushless,
+        claw_rotate, claw_open, claw_brushless, als,
     )).encode()
 
 
@@ -370,11 +375,14 @@ def main() -> None:
 
     slow_mode   = False
     slow_pushed = False
+    als         = False
+    als_pushed  = False
 
     period = 1.0 / SEND_HZ
     last   = 0.0
 
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock, \
+         socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as als_sock:
         print(f"Sending to {PI_IP}:{PORT}")
         print("Press ESC or close the window to stop.")
 
@@ -396,6 +404,11 @@ def main() -> None:
             if joyROV.B == 1:
                 slow_mode = False
 
+            # ── ALS toggle: START button edge-detect ──────────────────────
+            if joyROV.START == 1 and not als_pushed:
+                als = not als
+            als_pushed = (joyROV.START == 1)
+
             scale = 0.35 if slow_mode else 0.75
 
             # ── ROV axes ──────────────────────────────────────────────────
@@ -415,30 +428,41 @@ def main() -> None:
 
             roll = (joyROV.RightBumper - joyROV.LeftBumper) * scale
 
+            pitch_out = rjy * scale * -1.0
+            yaw_out   = rjx * scale
+
             packet = _build_packet(
                 ljy  * scale,
                 ljx  * scale,
                 vert,
-                rjx  * scale,
-                rjy  * scale * -1.0,
+                yaw_out,
+                pitch_out,
                 roll,
                 claw_rotate,
                 claw_open,
                 claw_brushless,
+                int(als),
             )
 
             now = time.time()
             if now - last >= period:
                 sock.sendto(packet, (PI_IP, PORT))
+                als_payload = json.dumps({
+                    "als":   als,
+                    "pitch": round(pitch_out, 4),
+                    "yaw":   round(yaw_out,   4),
+                }).encode()
+                als_sock.sendto(als_payload, ("127.0.0.1", ALS_PORT))
                 last = now
                 print(
                     f"Fwd: {ljy * scale:.2f}",
                     f"Str: {ljx * scale:.2f}",
                     f"Vert: {vert:.2f}",
-                    f"Pitch: {rjy * scale * -1:.2f}",
-                    f"Yaw: {rjx * scale:.2f}",
+                    f"Pitch: {pitch_out:.2f}",
+                    f"Yaw: {yaw_out:.2f}",
                     f"Roll: {roll:.2f}",
                     f"Slow: {slow_mode}",
+                    f"ALS: {als}",
                     f"Spin: {claw_rotate}",
                     f"Open: {claw_open}",
                     f"Brush: {claw_brushless:.2f}",
