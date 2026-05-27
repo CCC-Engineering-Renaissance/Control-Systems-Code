@@ -1,4 +1,4 @@
-#include "DepthSensor.h"
+#include "Depth_Sensor.h"
 
 #include <fcntl.h>
 #include <unistd.h>

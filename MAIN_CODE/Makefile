@@ -7,7 +7,7 @@ INCLUDES        := -I./include
 LIBS            := -lboost_system -li2c
 
 ROV_OBJS       := out/main.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o
-ONE_SERVO_OBJS := out/main_One_Servo.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o
+ONE_SERVO_OBJS := out/main_One_Servo.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o out/IMU.o out/MPU6050.o out/Depth_Sensor.o
 SPINCLAW_OBJS  := out/spinClaw.o out/Thruster.o out/PCA9685.o out/I2CPeripheral.o
 
 all: out $(TARGET) $(TARGET_ONE) $(TARGET_SPINCLAW)
@@ -24,7 +24,16 @@ $(TARGET_ONE): $(ONE_SERVO_OBJS)
 out/main.o: src/main.cpp include/Thruster.h include/Thruster_Mixer.h include/Claw.h include/PCA9685.h include/connection.h include/PID.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
-out/main_One_Servo.o: src/main_One_Servo.cpp include/Thruster.h include/Thruster_Mixer.h include/Claw.h include/PCA9685.h include/connection.h include/PID.h include/IMU.h
+out/main_One_Servo.o: src/main_One_Servo.cpp include/Thruster.h include/Thruster_Mixer.h include/Claw.h include/PCA9685.h include/connection.h include/PID.h include/IMU.h include/Depth_Sensor.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+out/IMU.o: src/IMU.cpp include/IMU.h include/MPU6050.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+out/MPU6050.o: src/MPU6050.cpp include/MPU6050.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+out/Depth_Sensor.o: src/Depth_Sensor.cpp include/Depth_Sensor.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 out/connection.o: src/connection.cpp include/connection.h

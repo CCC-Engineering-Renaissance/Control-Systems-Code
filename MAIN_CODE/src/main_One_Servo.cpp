@@ -5,6 +5,9 @@
 #include <iostream>
 #include <memory>
 #include <thread>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 #include "PCA9685.h"
 #include "Thruster.h"
 #include "Thruster_Mixer.h"
@@ -34,6 +37,9 @@ namespace Config {
 namespace {
   volatile std::sig_atomic_t keepRunning = 1;
   constexpr unsigned short kPort        = 5005;
+  constexpr unsigned short kTelemPort   = 5006;
+  constexpr const char*    kTopsideIP   = "192.168.2.1";   // change to your topside PC IP
+  constexpr auto kTelemInterval         = std::chrono::milliseconds(50);   // 20 Hz
   constexpr int   kStalePacketMs        = 500;
   constexpr float kMaxDt                = 0.1f;
   constexpr int   kArmDelayMs           = 3000;
@@ -71,6 +77,8 @@ static void depthSensorThread(DepthSensor& sensor) {
       gDepthMeters.store(sensor.getDepthMeters(),   std::memory_order_relaxed);
       gTempC      .store(sensor.getTemperatureC(),   std::memory_order_relaxed);
       gDepthReady .store(true,                       std::memory_order_release);
+    } else {
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
   }
 }
@@ -125,6 +133,21 @@ int main() {
   PiPCA9685::PCA9685 driver("/dev/i2c-1", 0x40);
   driver.set_pwm_freq(50.0);
   std::cout << "PCA9685 initialized on /dev/i2c-1 at address 0x40\n";
+
+  // ── Telemetry socket: ROV → topside PC ───────────────────────────────────
+  int telemSock = socket(AF_INET, SOCK_DGRAM, 0);
+  if (telemSock < 0) {
+    std::cerr << "Failed to create telemetry socket\n";
+  } else {
+    std::cout << "Telemetry socket created — sending to "
+              << kTopsideIP << ":" << kTelemPort << "\n";
+  }
+  sockaddr_in telemAddr{};
+  telemAddr.sin_family = AF_INET;
+  telemAddr.sin_port   = htons(kTelemPort);
+  inet_pton(AF_INET, kTopsideIP, &telemAddr.sin_addr);
+
+  auto lastTelemSend = std::chrono::steady_clock::now();
 
   // Let PCA9685 oscillator stabilize before doing anything
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -242,6 +265,7 @@ int main() {
   std::cout << "── Network interfaces ───────────────\n";
   std::system("ip -brief addr show | grep -E 'eth0|wlan0|end0' || echo '  No eth/wlan interfaces found'");
   std::cout << "── UDP socket bound on port " << kPort << " ──\n";
+  std::cout << "── Telemetry sending on port " << kTelemPort << " ──\n";
   std::cout << "─────────────────────────────────────\n";
 
   Thruster_Mixer mixer;
@@ -378,6 +402,30 @@ int main() {
     setPowerThruster(Config::kLeftVertical2,        leftVertical2,        output.leftVertical2 * kMaxThrustCoeff,        driver);
     setPowerThruster(Config::kRightVertical2,       rightVertical2,       output.rightVertical2 * kMaxThrustCoeff,       driver);
 
+    // ── Telemetry send (20 Hz) ───────────────────────────────────────────
+    auto tNow = std::chrono::steady_clock::now();
+    if (telemSock >= 0 && tNow - lastTelemSend >= kTelemInterval) {
+      float depth = gDepthMeters.load(std::memory_order_relaxed);
+      float temp  = gTempC.load(std::memory_order_relaxed);
+
+      char buf[256];
+      int n = snprintf(buf, sizeof(buf),
+          "{\"depth\":%.3f,\"temp\":%.2f,"
+          "\"pitch\":%.2f,\"yaw\":%.2f,\"roll\":%.2f,"
+          "\"depth_setpoint\":%.3f,\"als\":%s}",
+          depth, temp,
+          measuredPitch, measuredYaw, measuredRoll,
+          depthSetpoint,
+          input.als ? "true" : "false");
+
+      if (n > 0) {
+        sendto(telemSock, buf, n, 0,
+               (sockaddr*)&telemAddr, sizeof(telemAddr));
+      }
+      lastTelemSend = tNow;
+    }
+
+    // Console print (depth sensor)
     if (Config::kDepthSensor && gDepthReady.load(std::memory_order_acquire)) {
       std::cout << "Depth: " << gDepthMeters.load(std::memory_order_relaxed) << " m"
                 << "  Temp: " << gTempC.load(std::memory_order_relaxed) << " C\n";
@@ -393,6 +441,7 @@ int main() {
   stopServer();
   net.join();
   if (Config::kDepthSensor && depthThread.joinable()) depthThread.join();
+  if (telemSock >= 0) close(telemSock);
   std::cout << "\nExiting safely.\n";
   return 0;
 }
