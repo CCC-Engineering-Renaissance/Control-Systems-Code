@@ -26,8 +26,8 @@ namespace Config {
   constexpr bool kClawRotate           = true;
   constexpr bool kClawOpen             = true;
   constexpr bool kClawBrushless        = true;   // brushless motor on ch10
-  constexpr bool kPID                  = false;
-  constexpr bool kIMU                  = false;
+  constexpr bool kPID                  = true;
+  constexpr bool kIMU                  = true;
   constexpr bool kDepthSensor          = true;
 }
 
@@ -255,6 +255,7 @@ int main() {
   PID yawPID  (0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
   PID pitchPID(0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
   PID rollPID (0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
+  PID depthPID(0.50f, 0.0f, 0.10f, -1.0f, 1.0f);
 
   std::unique_ptr<IMU> imu;
   if (Config::kIMU) {
@@ -270,6 +271,9 @@ int main() {
   }
 
   float clawOpenPos = 0.0f;
+
+  float depthSetpoint = 0.0f;   // locked when ALS first activates
+  bool  prevAls       = false;  // edge-detect ALS toggle
 
   auto lastTime = std::chrono::steady_clock::now();
   bool wasWaiting = true;
@@ -313,6 +317,18 @@ int main() {
 
     const POVState input = get_State();
 
+    // ALS rising edge — latch depth setpoint once when ALS first turns on
+    if (Config::kDepthSensor && input.als && !prevAls &&
+        gDepthReady.load(std::memory_order_acquire)) {
+      depthSetpoint = gDepthMeters.load(std::memory_order_relaxed);
+      std::cout << "ALS ON  — depth setpoint locked at "
+                << depthSetpoint << " m\n";
+    }
+    if (!input.als && prevAls) {
+      std::cout << "ALS OFF — returning to manual control\n";
+    }
+    prevAls = input.als;
+
     setPowerThruster(Config::kClawRotate,    clawSpin,       input.clawRotate    * kMaxThrustCoeff, driver);
     setPowerThruster(Config::kClawBrushless, clawBrushless,  input.clawBrushless * kMaxThrustCoeff, driver);
     clawOpenPos = std::clamp(clawOpenPos + input.clawOpen * kClawSpeed * dt, -1.0f, 1.0f);
@@ -340,14 +356,20 @@ int main() {
       yawPID.reset();
       pitchPID.reset();
       rollPID.reset();
+      depthPID.reset();
     }
 
     POVState mixInput = input;
     mixInput.forward = -mixInput.forward;
     mixInput.yaw = -mixInput.yaw;
     if (Config::kPID && input.als) {
-      mixInput.yaw   = 0.0f;
-      mixInput.pitch = 0.0f;
+      mixInput.yaw      = 0.0f;   // PID drives yaw
+      mixInput.pitch    = 0.0f;   // PID drives pitch
+      mixInput.roll     = 0.0f;   // PID drives roll
+      // Depth hold: PID output feeds vertical; override manual vertical
+      float currentDepth    = gDepthMeters.load(std::memory_order_relaxed);
+      float depthOutput     = depthPID.update(depthSetpoint, currentDepth, dt);
+      mixInput.vertical     = depthOutput;
     }
 
     const Thruster_Outputs output =
