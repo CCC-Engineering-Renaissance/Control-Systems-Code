@@ -145,7 +145,8 @@ int main() {
   rearLeftHorizontal.setInverted(true);
   rearRightHorizontal.setInverted(true);
 
-  Thruster clawSpin(kChClawRotate);
+  Claw clawSpin(kChClawRotate, kClawRest, kClawOffset);  // ch8 — servo, Y=open / B=close
+  clawSpin.setLimits(kClawMinUs, kClawMaxUs);
   Thruster clawBrushless(kChClawBrushless);  // ch10 — brushless claw motor
 
   Claw clawOpen(kChClawOpen, kClawRest, kClawOffset);
@@ -154,8 +155,8 @@ int main() {
   // ── SafeStop guard ───────────────────────────────────────────────────────
   struct SafeStop {
     PiPCA9685::PCA9685& drv;
-    Thruster &flh, &frh, &rlh, &rrh, &lv, &rv, &lv2, &rv2, &cs, &cb;
-    Claw &cp;
+    Thruster &flh, &frh, &rlh, &rrh, &lv, &rv, &lv2, &rv2, &cb;
+    Claw &cs, &cp;
     ~SafeStop() noexcept {
       auto safe = [](auto fn) noexcept { try { fn(); } catch (...) {} };
       safe([&]{ stopThruster(Config::kFrontLeftHorizontal,  flh,  drv); });
@@ -166,14 +167,14 @@ int main() {
       safe([&]{ stopThruster(Config::kRightVertical,        rv,   drv); });
       safe([&]{ stopThruster(Config::kLeftVertical2,        lv2,  drv); });
       safe([&]{ stopThruster(Config::kRightVertical2,       rv2,  drv); });
-      safe([&]{ stopThruster(Config::kClawRotate,           cs,   drv); });
       safe([&]{ stopThruster(Config::kClawBrushless,        cb,   drv); });
+      safe([&]{ centerClaw(Config::kClawRotate, cs, drv); });
       safe([&]{ centerClaw(Config::kClawOpen,   cp, drv); });
     }
   } guard{driver,
     frontLeftHorizontal, frontRightHorizontal, rearLeftHorizontal, rearRightHorizontal,
     leftVertical, rightVertical, leftVertical2, rightVertical2,
-    clawSpin, clawBrushless, clawOpen};
+    clawBrushless, clawSpin, clawOpen};
   /*
 
   // ── ESC Calibration sequence ─────────────────────────────────────────────
@@ -222,18 +223,10 @@ int main() {
   std::this_thread::sleep_for(std::chrono::milliseconds(kArmDelayMs));
  */
 
-  // Arm claw spin ESC: send neutral so the ESC can arm before accepting commands
+  // ch8 is now a servo — no ESC arming needed; center it at startup
   if (Config::kClawRotate) {
-    clawSpin.stop(driver);
-    std::cout << "Claw spin ESC neutral sent. Waiting for ESC to arm...\n";
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-
-    std::cout << "SpinClaw: running at 0.5 power for 2 seconds...\n";
-    clawSpin.setPower(0.5, driver);
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-
-    clawSpin.stop(driver);
-    std::cout << "SpinClaw: startup test done.\n";
+    clawSpin.center(driver);
+    std::cout << "Spin servo (ch8) centred at startup.\n";
   }
 
   // Arm brushless claw ESC on ch10
@@ -270,7 +263,8 @@ int main() {
     std::cout << "Depth sensor thread started on /dev/i2c-1 at 0x76\n";
   }
 
-  float clawOpenPos = 0.0f;
+  float clawSpinPos = 0.0f;   // ch8 servo position
+  float clawOpenPos = 0.0f;   // ch9 servo position
 
   float depthSetpoint = 0.0f;   // locked when ALS first activates
   bool  prevAls       = false;  // edge-detect ALS toggle
@@ -280,7 +274,8 @@ int main() {
 
   try {
   while (keepRunning) {
-    setPosClaw(Config::kClawOpen,  clawOpen,  clawOpenPos,  driver);
+    setPosClaw(Config::kClawRotate, clawSpin,  clawSpinPos,  driver);
+    setPosClaw(Config::kClawOpen,   clawOpen,  clawOpenPos,  driver);
 
     if (!is_Fresh(kStalePacketMs)) {
       stopThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  driver);
@@ -291,7 +286,6 @@ int main() {
       stopThruster(Config::kRightVertical,        rightVertical,        driver);
       stopThruster(Config::kLeftVertical2,        leftVertical2,        driver);
       stopThruster(Config::kRightVertical2,       rightVertical2,       driver);
-      stopThruster(Config::kClawRotate,           clawSpin,             driver);
       stopThruster(Config::kClawBrushless,        clawBrushless,        driver);
       yawPID.reset();
       pitchPID.reset();
@@ -329,7 +323,7 @@ int main() {
     }
     prevAls = input.als;
 
-    setPowerThruster(Config::kClawRotate,    clawSpin,       input.clawRotate    * kMaxThrustCoeff, driver);
+    clawSpinPos = std::clamp(clawSpinPos + input.clawRotate * kClawSpeed * dt, -1.0f, 1.0f);
     setPowerThruster(Config::kClawBrushless, clawBrushless,  input.clawBrushless * kMaxThrustCoeff, driver);
     clawOpenPos = std::clamp(clawOpenPos + input.clawOpen * kClawSpeed * dt, -1.0f, 1.0f);
 

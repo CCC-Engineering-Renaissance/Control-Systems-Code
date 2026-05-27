@@ -172,8 +172,8 @@ def main():
             rjx = joyROV.axis("RightJoystickX", dz=0.10, factor=1.0)  # yaw
 
             # ── Claw controller ───────────────────────────────────────
-            # LT: spin claw (ch8) | X/A: open/close servo (ch9) | RT: brushless motor (ch10)
-            clawRotate     = joyClaw.axis("LeftTrigger",  dz=0.05, factor=1.0)
+            # Y/B: spin servo (ch8) | X/A: open/close servo (ch9) | RT: brushless motor (ch10)
+            clawRotate     = int(joyClaw.Y) - int(joyClaw.B)   # Y=open(+1), B=close(-1)
             clawOpen       = int(joyClaw.X) - int(joyClaw.A)
             clawBrushless  = joyClaw.axis("RightTrigger", dz=0.05, factor=1.0)
 
@@ -207,7 +207,7 @@ def main():
                     f"Yaw(RJ-X): {rjx * scale:.2f}",
                     f"Roll(RB/LB): {joyROV.RightBumper - joyROV.LeftBumper}",
                     f"SlowMode: {slow_mode}",
-                    f"SpinClaw(LT): {clawRotate:.2f}",
+                    f"SpinServo(Y/B): {clawRotate}",
                     f"Servo2-Open(X/A): {clawOpen}",
                     f"Brushless(RT): {clawBrushless:.2f}",
                 )
