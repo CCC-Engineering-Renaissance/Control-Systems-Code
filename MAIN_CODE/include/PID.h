@@ -7,6 +7,10 @@ public:
 
     void reset();
 
+    float getKp() const { return Kp; }
+    float getKi() const { return Ki; }
+    float getKd() const { return Kd; }
+
 private:
     float Kp, Ki, Kd;
     float integral = 0.0f;

@@ -408,15 +408,23 @@ int main() {
       float depth = gDepthMeters.load(std::memory_order_relaxed);
       float temp  = gTempC.load(std::memory_order_relaxed);
 
-      char buf[256];
+      char buf[512];
       int n = snprintf(buf, sizeof(buf),
           "{\"depth\":%.3f,\"temp\":%.2f,"
           "\"pitch\":%.2f,\"yaw\":%.2f,\"roll\":%.2f,"
-          "\"depth_setpoint\":%.3f,\"als\":%s}",
+          "\"depth_setpoint\":%.3f,\"als\":%s,"
+          "\"yaw_kp\":%.4f,\"yaw_ki\":%.4f,\"yaw_kd\":%.4f,"
+          "\"pitch_kp\":%.4f,\"pitch_ki\":%.4f,\"pitch_kd\":%.4f,"
+          "\"roll_kp\":%.4f,\"roll_ki\":%.4f,\"roll_kd\":%.4f,"
+          "\"depth_kp\":%.4f,\"depth_ki\":%.4f,\"depth_kd\":%.4f}",
           depth, temp,
           measuredPitch, measuredYaw, measuredRoll,
           depthSetpoint,
-          input.als ? "true" : "false");
+          input.als ? "true" : "false",
+          yawPID.getKp(),   yawPID.getKi(),   yawPID.getKd(),
+          pitchPID.getKp(), pitchPID.getKi(), pitchPID.getKd(),
+          rollPID.getKp(),  rollPID.getKi(),  rollPID.getKd(),
+          depthPID.getKp(), depthPID.getKi(), depthPID.getKd());
 
       if (n > 0) {
         sendto(telemSock, buf, n, 0,
