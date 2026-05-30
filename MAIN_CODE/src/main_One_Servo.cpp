@@ -39,7 +39,7 @@ namespace {
   volatile std::sig_atomic_t keepRunning = 1;
   constexpr unsigned short kPort        = 5005;
   constexpr unsigned short kTelemPort   = 5006;
-  constexpr const char*    kTopsideIP   = "192.168.2.1";   // change to your topside PC IP
+  constexpr const char*    kTopsideIP   = "192.168.8.189";   // topside PC IP
   constexpr auto kTelemInterval         = std::chrono::milliseconds(50);   // 20 Hz
   constexpr int   kStalePacketMs        = 500;
   constexpr float kMaxDt                = 0.1f;
