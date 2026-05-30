@@ -153,6 +153,11 @@ void Thruster::setPower(double pwr, PiPCA9685::PCA9685 &driver) {
   double p = clampPower(pwr);
   if (inverted) p = -p;
 
+  // Software deadband: ESC calibration drift can cause creep at values the
+  // ESC doesn't recognise as neutral.  Snap anything below 3 % to zero so
+  // the driver always sends the exact rest pulse in that region.
+  if (p < 0.03 && p > -0.03) p = 0.0;
+
   // Map normalized power -> microseconds around neutral.
   // Example: rest=1500, offset=350
   // power=+1.0 => 1850 us
