@@ -1,8 +1,10 @@
 #include "I2CPeripheral.h"
+#include "TCA9548A.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <cstring>
+#include <mutex>
 extern "C" {
 #include <linux/i2c.h>
 #include <linux/i2c-dev.h>
@@ -12,7 +14,8 @@ extern "C" {
 
 namespace PiPCA9685 {
 
-I2CPeripheral::I2CPeripheral(const std::string& device, const uint8_t address) {
+I2CPeripheral::I2CPeripheral(const std::string& device, const uint8_t address, const uint8_t mux_channel)
+    : device_address_(address), mux_channel_(mux_channel) {
   OpenBus(device);
   ConnectToPeripheral(address);
 }
@@ -22,6 +25,8 @@ I2CPeripheral::~I2CPeripheral() {
 }
 
 void I2CPeripheral::WriteRegisterByte(const uint8_t register_address, const uint8_t value) {
+  std::lock_guard<std::mutex> lock(TCA9548A::g_mutex);
+  if (mux_channel_) TCA9548A::selectChannel(bus_fd, mux_channel_, device_address_);
   i2c_smbus_data data;
   data.byte = value;
   for (int attempt = 0; attempt < 3; ++attempt) {
@@ -39,6 +44,8 @@ void I2CPeripheral::WriteRegisterByte(const uint8_t register_address, const uint
 }
 
 void I2CPeripheral::WriteRegisterBlock(uint8_t register_address, const uint8_t* data, size_t len) {
+  std::lock_guard<std::mutex> lock(TCA9548A::g_mutex);
+  if (mux_channel_) TCA9548A::selectChannel(bus_fd, mux_channel_, device_address_);
   // Single write() sends register address + all data bytes in one I2C transaction.
   // Requires AI (auto-increment) bit set in MODE1 so the PCA9685 increments the
   // internal register pointer for each successive byte.
@@ -57,6 +64,8 @@ void I2CPeripheral::WriteRegisterBlock(uint8_t register_address, const uint8_t* 
 }
 
 uint8_t I2CPeripheral::ReadRegisterByte(const uint8_t register_address) {
+  std::lock_guard<std::mutex> lock(TCA9548A::g_mutex);
+  if (mux_channel_) TCA9548A::selectChannel(bus_fd, mux_channel_, device_address_);
   i2c_smbus_data data;
   for (int attempt = 0; attempt < 3; ++attempt) {
     const auto err = i2c_smbus_access(bus_fd, I2C_SMBUS_READ, register_address, I2C_SMBUS_BYTE_DATA, &data);

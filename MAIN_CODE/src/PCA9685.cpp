@@ -6,8 +6,8 @@
 
 namespace PiPCA9685 {
 
-PCA9685::PCA9685(const std::string &device, int address) {
-  i2c_dev = std::make_unique<I2CPeripheral>(device, address);
+PCA9685::PCA9685(const std::string &device, int address, uint8_t mux_channel) {
+  i2c_dev = std::make_unique<I2CPeripheral>(device, static_cast<uint8_t>(address), mux_channel);
 
   // Configure output driver and wake up with AI enabled before any block writes.
   i2c_dev->WriteRegisterByte(MODE2, OUTDRV);

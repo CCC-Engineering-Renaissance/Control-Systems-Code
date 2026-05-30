@@ -16,6 +16,7 @@
 #include "PID.h"
 #include "IMU.h"
 #include "Depth_Sensor.h"
+#include "TCA9548A.h"
 
 namespace Config {
   constexpr bool kFrontLeftHorizontal  = true;
@@ -130,7 +131,7 @@ int main() {
     }
   });
 
-  PiPCA9685::PCA9685 driver("/dev/i2c-1", 0x40);
+  PiPCA9685::PCA9685 driver("/dev/i2c-1", 0x40, TCA9548A::kCh3);
   driver.set_pwm_freq(50.0);
   std::cout << "PCA9685 initialized on /dev/i2c-1 at address 0x40\n";
 

@@ -11,7 +11,7 @@ class I2CPeripheral;
 
 class PCA9685 {
 public:
-    explicit PCA9685(const std::string &device = "/dev/i2c-1", int address = 0x40);
+    explicit PCA9685(const std::string &device = "/dev/i2c-1", int address = 0x40, uint8_t mux_channel = 0);
     ~PCA9685();
 
     void set_pwm_freq(const double freq_hz);

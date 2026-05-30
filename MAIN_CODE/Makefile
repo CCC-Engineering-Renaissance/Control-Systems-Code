@@ -7,7 +7,7 @@ INCLUDES        := -I./include
 LIBS            := -lboost_system -li2c
 
 ROV_OBJS       := out/main.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o
-ONE_SERVO_OBJS := out/main_One_Servo.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o out/IMU.o out/MPU6050.o out/Depth_Sensor.o
+ONE_SERVO_OBJS := out/main_One_Servo.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o out/IMU.o out/MPU6050.o out/Depth_Sensor.o out/TCA9548A.o
 SPINCLAW_OBJS  := out/spinClaw.o out/Thruster.o out/PCA9685.o out/I2CPeripheral.o
 
 all: out $(TARGET) $(TARGET_ONE) $(TARGET_SPINCLAW)
@@ -54,7 +54,10 @@ out/Claw.o: src/Claw.cpp include/Claw.h include/PCA9685.h
 out/PCA9685.o: src/PCA9685.cpp include/PCA9685.h include/I2CPeripheral.h include/Constants.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
-out/I2CPeripheral.o: src/I2CPeripheral.cpp include/I2CPeripheral.h
+out/I2CPeripheral.o: src/I2CPeripheral.cpp include/I2CPeripheral.h include/TCA9548A.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+out/TCA9548A.o: src/TCA9548A.cpp include/TCA9548A.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 out/spinClaw.o: src/spinClaw.cpp include/Thruster.h include/PCA9685.h

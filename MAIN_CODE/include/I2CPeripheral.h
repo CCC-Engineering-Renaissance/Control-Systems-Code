@@ -8,7 +8,8 @@ namespace PiPCA9685 {
 
 class I2CPeripheral {
 public:
-  I2CPeripheral(const std::string& device, const uint8_t address);
+  // mux_channel: TCA9548A channel mask (e.g. TCA9548A::kCh3). Pass 0 if no mux.
+  I2CPeripheral(const std::string& device, const uint8_t address, const uint8_t mux_channel = 0);
   ~I2CPeripheral();
 
   void WriteRegisterByte(const uint8_t register_address, const uint8_t value);
@@ -19,6 +20,8 @@ public:
 
 private:
   int bus_fd;
+  uint8_t device_address_;
+  uint8_t mux_channel_;
 
   void OpenBus(const std::string& device);
   void ConnectToPeripheral(const uint8_t address);
