@@ -25,8 +25,8 @@ namespace Config {
   constexpr bool kRearLeftHorizontal   = true;
   constexpr bool kRearRightHorizontal  = true;
   constexpr bool kLeftVertical         = true;
-  constexpr bool kRightVertical        = false;
-  constexpr bool kLeftVertical2        = false;
+  constexpr bool kRightVertical        = true;
+  constexpr bool kLeftVertical2        = true;
   constexpr bool kRightVertical2       = true;
   constexpr bool kClawRotate           = true;
   constexpr bool kClawOpen             = true;
