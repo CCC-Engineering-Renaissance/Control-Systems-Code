@@ -18,6 +18,8 @@
 #include "Depth_Sensor.h"
 #include "TCA9548A.h"
 
+using namespace std;
+
 namespace Config {
   constexpr bool kFrontLeftHorizontal  = true;
   constexpr bool kFrontRightHorizontal = true;
@@ -36,11 +38,11 @@ namespace Config {
 }
 
 namespace {
-  volatile std::sig_atomic_t keepRunning = 1;
+  volatile sig_atomic_t keepRunning = 1;
   constexpr unsigned short kPort        = 5005;
   constexpr unsigned short kTelemPort   = 5006;
   constexpr const char*    kTopsideIP   = "192.168.8.189";   // topside PC IP
-  constexpr auto kTelemInterval         = std::chrono::milliseconds(50);   // 20 Hz
+  constexpr auto kTelemInterval         = chrono::milliseconds(50);   // 20 Hz
   constexpr int   kStalePacketMs        = 500;
   constexpr float kMaxDt                = 0.1f;
   constexpr int   kArmDelayMs           = 3000;
@@ -58,28 +60,28 @@ namespace {
 
   void signalHandler(int) { keepRunning = 0; }
 
-  std::atomic<float> gDepthMeters{0.0f};
-  std::atomic<float> gTempC{0.0f};
-  std::atomic<bool>  gDepthReady{false};
+  atomic<float> gDepthMeters{0.0f};
+  atomic<float> gTempC{0.0f};
+  atomic<bool>  gDepthReady{false};
 }
 
 static void depthSensorThread(DepthSensor& sensor) {
   if (!sensor.init()) {
-    std::cerr << "Depth sensor init failed — depth readings unavailable\n";
+    cerr << "Depth sensor init failed — depth readings unavailable\n";
     return;
   }
   // Zero depth at the surface using the first successful read
   if (sensor.read()) {
     sensor.setSurfacePressure(sensor.getPressureMbar());
-    std::cout << "Depth sensor zeroed at " << sensor.getPressureMbar() << " mbar\n";
+    cout << "Depth sensor zeroed at " << sensor.getPressureMbar() << " mbar\n";
   }
   while (keepRunning) {
     if (sensor.read()) {
-      gDepthMeters.store(sensor.getDepthMeters(),   std::memory_order_relaxed);
-      gTempC      .store(sensor.getTemperatureC(),   std::memory_order_relaxed);
-      gDepthReady .store(true,                       std::memory_order_release);
+      gDepthMeters.store(sensor.getDepthMeters(),   memory_order_relaxed);
+      gTempC      .store(sensor.getTemperatureC(),   memory_order_relaxed);
+      gDepthReady .store(true,                       memory_order_release);
     } else {
-      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      this_thread::sleep_for(chrono::milliseconds(50));
     }
   }
 }
@@ -98,49 +100,49 @@ static void setPosClaw(bool enabled, Claw& c, float pos, PiPCA9685::PCA9685& d) 
 }
 
 int main() {
-  std::signal(SIGINT,  signalHandler);
-  std::signal(SIGTERM, signalHandler);
-  std::signal(SIGHUP,  signalHandler);
-  std::signal(SIGQUIT, signalHandler);
-  std::cout << "ROV starting...\n";
+  signal(SIGINT,  signalHandler);
+  signal(SIGTERM, signalHandler);
+  signal(SIGHUP,  signalHandler);
+  signal(SIGQUIT, signalHandler);
+  cout << "ROV starting...\n";
 
-  std::cout << "── Active hardware ──────────────────\n";
-  std::cout << "  FrontLeftH  : " << (Config::kFrontLeftHorizontal  ? "ON" : "OFF") << "\n";
-  std::cout << "  FrontRightH : " << (Config::kFrontRightHorizontal ? "ON" : "OFF") << "\n";
-  std::cout << "  RearLeftH   : " << (Config::kRearLeftHorizontal   ? "ON" : "OFF") << "\n";
-  std::cout << "  RearRightH  : " << (Config::kRearRightHorizontal  ? "ON" : "OFF") << "\n";
-  std::cout << "  LeftVert    : " << (Config::kLeftVertical         ? "ON" : "OFF") << "\n";
-  std::cout << "  RightVert   : " << (Config::kRightVertical        ? "ON" : "OFF") << "\n";
-  std::cout << "  LeftVert2   : " << (Config::kLeftVertical2        ? "ON" : "OFF") << "\n";
-  std::cout << "  RightVert2  : " << (Config::kRightVertical2       ? "ON" : "OFF") << "\n";
-  std::cout << "  SpinClaw(ch8) : " << (Config::kClawRotate            ? "ON" : "OFF") << "\n";
-  std::cout << "  Servo2  (ch9) : " << (Config::kClawOpen             ? "ON" : "OFF") << "\n";
-  std::cout << "  Brushless(ch10): " << (Config::kClawBrushless        ? "ON" : "OFF") << "\n";
-  std::cout << "  PID         : " << (Config::kPID                  ? "ON" : "OFF") << "\n";
-  std::cout << "  IMU         : " << (Config::kIMU                  ? "ON" : "OFF") << "\n";
-  std::cout << "  DepthSensor : " << (Config::kDepthSensor          ? "ON" : "OFF") << "\n";
-  std::cout << "─────────────────────────────────────\n";
+  cout << "── Active hardware ──────────────────\n";
+  cout << "  FrontLeftH  : " << (Config::kFrontLeftHorizontal  ? "ON" : "OFF") << "\n";
+  cout << "  FrontRightH : " << (Config::kFrontRightHorizontal ? "ON" : "OFF") << "\n";
+  cout << "  RearLeftH   : " << (Config::kRearLeftHorizontal   ? "ON" : "OFF") << "\n";
+  cout << "  RearRightH  : " << (Config::kRearRightHorizontal  ? "ON" : "OFF") << "\n";
+  cout << "  LeftVert    : " << (Config::kLeftVertical         ? "ON" : "OFF") << "\n";
+  cout << "  RightVert   : " << (Config::kRightVertical        ? "ON" : "OFF") << "\n";
+  cout << "  LeftVert2   : " << (Config::kLeftVertical2        ? "ON" : "OFF") << "\n";
+  cout << "  RightVert2  : " << (Config::kRightVertical2       ? "ON" : "OFF") << "\n";
+  cout << "  SpinClaw(ch8) : " << (Config::kClawRotate            ? "ON" : "OFF") << "\n";
+  cout << "  Servo2  (ch9) : " << (Config::kClawOpen             ? "ON" : "OFF") << "\n";
+  cout << "  Brushless(ch10): " << (Config::kClawBrushless        ? "ON" : "OFF") << "\n";
+  cout << "  PID         : " << (Config::kPID                  ? "ON" : "OFF") << "\n";
+  cout << "  IMU         : " << (Config::kIMU                  ? "ON" : "OFF") << "\n";
+  cout << "  DepthSensor : " << (Config::kDepthSensor          ? "ON" : "OFF") << "\n";
+  cout << "─────────────────────────────────────\n";
 
-  std::thread net([] {
+  thread net([] {
     try {
       server(kPort);
-    } catch (const std::exception& e) {
-      std::cerr << "Network thread exception: " << e.what() << "\n";
+    } catch (const exception& e) {
+      cerr << "Network thread exception: " << e.what() << "\n";
     } catch (...) {
-      std::cerr << "Network thread unknown exception\n";
+      cerr << "Network thread unknown exception\n";
     }
   });
 
   PiPCA9685::PCA9685 driver("/dev/i2c-1", 0x40, TCA9548A::kCh3);
   driver.set_pwm_freq(50.0);
-  std::cout << "PCA9685 initialized on /dev/i2c-1 at address 0x40\n";
+  cout << "PCA9685 initialized on /dev/i2c-1 at address 0x40\n";
 
   // ── Telemetry socket: ROV → topside PC ───────────────────────────────────
   int telemSock = socket(AF_INET, SOCK_DGRAM, 0);
   if (telemSock < 0) {
-    std::cerr << "Failed to create telemetry socket\n";
+    cerr << "Failed to create telemetry socket\n";
   } else {
-    std::cout << "Telemetry socket created — sending to "
+    cout << "Telemetry socket created — sending to "
               << kTopsideIP << ":" << kTelemPort << "\n";
   }
   sockaddr_in telemAddr{};
@@ -148,10 +150,10 @@ int main() {
   telemAddr.sin_port   = htons(kTelemPort);
   inet_pton(AF_INET, kTopsideIP, &telemAddr.sin_addr);
 
-  auto lastTelemSend = std::chrono::steady_clock::now();
+  auto lastTelemSend = chrono::steady_clock::now();
 
   // Let PCA9685 oscillator stabilize before doing anything
-  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  this_thread::sleep_for(chrono::milliseconds(500));
 
   // ── Thruster & Claw declarations ─────────────────────────────────────────
   Thruster frontLeftHorizontal(0);
@@ -202,10 +204,10 @@ int main() {
   /*
 
   // ── ESC Calibration sequence ─────────────────────────────────────────────
-  std::cout << "CALIBRATION START\n";
+  cout << "CALIBRATION START\n";
 
   // Step 1: Send max throttle
-  std::cout << "  Sending MAX throttle...\n";
+  cout << "  Sending MAX throttle...\n";
   setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  1.0f, driver);
   setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, 1.0f, driver);
   setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   1.0f, driver);
@@ -214,11 +216,11 @@ int main() {
   setPowerThruster(Config::kRightVertical,        rightVertical,        1.0f, driver);
   setPowerThruster(Config::kLeftVertical2,        leftVertical2,        1.0f, driver);
   setPowerThruster(Config::kRightVertical2,       rightVertical2,       1.0f, driver);
-  std::cout << "  MAX PWM value: " << frontLeftHorizontal.getPWM() << "us\n";
-  std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+  cout << "  MAX PWM value: " << frontLeftHorizontal.getPWM() << "us\n";
+  this_thread::sleep_for(chrono::milliseconds(2000));
 
   // Step 2: Send min throttle
-  std::cout << "  Sending MIN throttle...\n";
+  cout << "  Sending MIN throttle...\n";
   setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  -1.0f, driver);
   setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, -1.0f, driver);
   setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   -1.0f, driver);
@@ -227,11 +229,11 @@ int main() {
   setPowerThruster(Config::kRightVertical,        rightVertical,        -1.0f, driver);
   setPowerThruster(Config::kLeftVertical2,        leftVertical2,        -1.0f, driver);
   setPowerThruster(Config::kRightVertical2,       rightVertical2,       -1.0f, driver);
-  std::cout << "  MIN PWM value: " << frontLeftHorizontal.getPWM() << "us\n";
-  std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+  cout << "  MIN PWM value: " << frontLeftHorizontal.getPWM() << "us\n";
+  this_thread::sleep_for(chrono::milliseconds(2000));
 
   // Step 3: Send neutral
-  std::cout << "  Sending NEUTRAL...\n";
+  cout << "  Sending NEUTRAL...\n";
   stopThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  driver);
   stopThruster(Config::kFrontRightHorizontal, frontRightHorizontal, driver);
   stopThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   driver);
@@ -242,32 +244,32 @@ int main() {
   stopThruster(Config::kRightVertical2,       rightVertical2,       driver);
   stopThruster(Config::kClawRotate, clawSpin,  driver);
   centerClaw(Config::kClawOpen,   clawOpen,  driver);
-  std::cout << "  NEUTRAL PWM value: " << frontLeftHorizontal.getPWM() << "us\n";
-  std::cout << "CALIBRATION COMPLETE - waiting for arm...\n";
-  std::this_thread::sleep_for(std::chrono::milliseconds(kArmDelayMs));
+  cout << "  NEUTRAL PWM value: " << frontLeftHorizontal.getPWM() << "us\n";
+  cout << "CALIBRATION COMPLETE - waiting for arm...\n";
+  this_thread::sleep_for(chrono::milliseconds(kArmDelayMs));
  */
 
   // ch8 is now a servo — no ESC arming needed; center it at startup
   if (Config::kClawRotate) {
     clawSpin.center(driver);
-    std::cout << "Spin servo (ch8) centred at startup.\n";
+    cout << "Spin servo (ch8) centred at startup.\n";
   }
 
   // Arm brushless claw ESC on ch10
   if (Config::kClawBrushless) {
     clawBrushless.stop(driver);
-    std::cout << "Brushless claw (ch10) ESC neutral sent. Waiting for ESC to arm...\n";
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-    std::cout << "Brushless claw (ch10): armed and ready.\n";
+    cout << "Brushless claw (ch10) ESC neutral sent. Waiting for ESC to arm...\n";
+    this_thread::sleep_for(chrono::milliseconds(2000));
+    cout << "Brushless claw (ch10): armed and ready.\n";
   }
 
-  std::cout << "ROV is ON\n";
+  cout << "ROV is ON\n";
 
-  std::cout << "── Network interfaces ───────────────\n";
-  std::system("ip -brief addr show | grep -E 'eth0|wlan0|end0' || echo '  No eth/wlan interfaces found'");
-  std::cout << "── UDP socket bound on port " << kPort << " ──\n";
-  std::cout << "── Telemetry sending on port " << kTelemPort << " ──\n";
-  std::cout << "─────────────────────────────────────\n";
+  cout << "── Network interfaces ───────────────\n";
+  system("ip -brief addr show | grep -E 'eth0|wlan0|end0' || echo '  No eth/wlan interfaces found'");
+  cout << "── UDP socket bound on port " << kPort << " ──\n";
+  cout << "── Telemetry sending on port " << kTelemPort << " ──\n";
+  cout << "─────────────────────────────────────\n";
 
   Thruster_Mixer mixer;
   PID yawPID  (0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
@@ -275,17 +277,17 @@ int main() {
   PID rollPID (0.02f, 0.0f, 0.01f, -1.0f, 1.0f);
   PID depthPID(0.50f, 0.0f, 0.10f, -1.0f, 1.0f);
 
-  std::unique_ptr<IMU> imu;
+  unique_ptr<IMU> imu;
   if (Config::kIMU) {
-    imu = std::make_unique<IMU>();
-    std::cout << "IMU initialized at 0x68\n";
+    imu = make_unique<IMU>();
+    cout << "IMU initialized at 0x68\n";
   }
 
   DepthSensor depthSensor;
-  std::thread depthThread;
+  thread depthThread;
   if (Config::kDepthSensor) {
-    depthThread = std::thread(depthSensorThread, std::ref(depthSensor));
-    std::cout << "Depth sensor thread started on /dev/i2c-1 at 0x76\n";
+    depthThread = thread(depthSensorThread, ref(depthSensor));
+    cout << "Depth sensor thread started on /dev/i2c-1 at 0x76\n";
   }
 
   float clawSpinPos = 0.0f;   // ch8 servo position
@@ -294,7 +296,7 @@ int main() {
   float depthSetpoint = 0.0f;   // locked when ALS first activates
   bool  prevAls       = false;  // edge-detect ALS toggle
 
-  auto lastTime = std::chrono::steady_clock::now();
+  auto lastTime = chrono::steady_clock::now();
   bool wasWaiting = true;
 
   try {
@@ -315,22 +317,22 @@ int main() {
       yawPID.reset();
       pitchPID.reset();
       rollPID.reset();
-      lastTime = std::chrono::steady_clock::now();
+      lastTime = chrono::steady_clock::now();
       if (!wasWaiting) {
-        std::cout << "Waiting for controller packets...\n";
+        cout << "Waiting for controller packets...\n";
         wasWaiting = true;
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      this_thread::sleep_for(chrono::milliseconds(2));
       continue;
     }
 
-    auto now = std::chrono::steady_clock::now();
-    float dt = std::chrono::duration<float>(now - lastTime).count();
+    auto now = chrono::steady_clock::now();
+    float dt = chrono::duration<float>(now - lastTime).count();
     lastTime  = now;
-    dt        = std::min(dt, kMaxDt);
+    dt        = min(dt, kMaxDt);
 
     if (wasWaiting) {
-      std::cout << "Controller packet received.\n";
+      cout << "Controller packet received.\n";
       wasWaiting = false;
     }
 
@@ -338,19 +340,19 @@ int main() {
 
     // ALS rising edge — latch depth setpoint once when ALS first turns on
     if (Config::kDepthSensor && input.als && !prevAls &&
-        gDepthReady.load(std::memory_order_acquire)) {
-      depthSetpoint = gDepthMeters.load(std::memory_order_relaxed);
-      std::cout << "ALS ON  — depth setpoint locked at "
+        gDepthReady.load(memory_order_acquire)) {
+      depthSetpoint = gDepthMeters.load(memory_order_relaxed);
+      cout << "ALS ON  — depth setpoint locked at "
                 << depthSetpoint << " m\n";
     }
     if (!input.als && prevAls) {
-      std::cout << "ALS OFF — returning to manual control\n";
+      cout << "ALS OFF — returning to manual control\n";
     }
     prevAls = input.als;
 
-    clawSpinPos = std::clamp(clawSpinPos + input.clawRotate * kClawSpeed * dt, -1.0f, 1.0f);
+    clawSpinPos = clamp(clawSpinPos + input.clawRotate * kClawSpeed * dt, -1.0f, 1.0f);
     setPowerThruster(Config::kClawBrushless, clawBrushless,  input.clawBrushless * kMaxThrustCoeff, driver);
-    clawOpenPos = std::clamp(clawOpenPos + input.clawOpen * kClawSpeed * dt, -1.0f, 1.0f);
+    clawOpenPos = clamp(clawOpenPos + input.clawOpen * kClawSpeed * dt, -1.0f, 1.0f);
 
     float measuredPitch = 0.0f;
     float measuredYaw   = 0.0f;
@@ -386,7 +388,7 @@ int main() {
       mixInput.pitch    = 0.0f;   // PID drives pitch
       mixInput.roll     = 0.0f;   // PID drives roll
       // Depth hold: PID output feeds vertical; override manual vertical
-      float currentDepth    = gDepthMeters.load(std::memory_order_relaxed);
+      float currentDepth    = gDepthMeters.load(memory_order_relaxed);
       float depthOutput     = depthPID.update(depthSetpoint, currentDepth, dt);
       mixInput.vertical     = depthOutput;
     }
@@ -404,10 +406,10 @@ int main() {
     setPowerThruster(Config::kRightVertical2,       rightVertical2,       output.rightVertical2 * kMaxThrustCoeff,       driver);
 
     // ── Telemetry send (20 Hz) ───────────────────────────────────────────
-    auto tNow = std::chrono::steady_clock::now();
+    auto tNow = chrono::steady_clock::now();
     if (telemSock >= 0 && tNow - lastTelemSend >= kTelemInterval) {
-      float depth = gDepthMeters.load(std::memory_order_relaxed);
-      float temp  = gTempC.load(std::memory_order_relaxed);
+      float depth = gDepthMeters.load(memory_order_relaxed);
+      float temp  = gTempC.load(memory_order_relaxed);
 
       char buf[512];
       int n = snprintf(buf, sizeof(buf),
@@ -435,22 +437,22 @@ int main() {
     }
 
     // Console print (depth sensor)
-    if (Config::kDepthSensor && gDepthReady.load(std::memory_order_acquire)) {
-      std::cout << "Depth: " << gDepthMeters.load(std::memory_order_relaxed) << " m"
-                << "  Temp: " << gTempC.load(std::memory_order_relaxed) << " C\n";
-      gDepthReady.store(false, std::memory_order_relaxed);
+    if (Config::kDepthSensor && gDepthReady.load(memory_order_acquire)) {
+      cout << "Depth: " << gDepthMeters.load(memory_order_relaxed) << " m"
+                << "  Temp: " << gTempC.load(memory_order_relaxed) << " C\n";
+      gDepthReady.store(false, memory_order_relaxed);
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    this_thread::sleep_for(chrono::milliseconds(2));
   }
-  } catch (const std::exception& e) {
-    std::cerr << "\nControl loop exception: " << e.what() << "\n";
+  } catch (const exception& e) {
+    cerr << "\nControl loop exception: " << e.what() << "\n";
   }
 
   stopServer();
   net.join();
   if (Config::kDepthSensor && depthThread.joinable()) depthThread.join();
   if (telemSock >= 0) close(telemSock);
-  std::cout << "\nExiting safely.\n";
+  cout << "\nExiting safely.\n";
   return 0;
 }
