@@ -218,12 +218,12 @@ class XboxController:
         # once and pre-computes constants so the per-frame __call__ is pure math.
         # Keys match the names used in _get_axis_raw / the main loop.
         self._filters: dict[str, AxisFilter] = {
-            "LeftJoystickX":  AxisFilter(dz=0.10, outer_dz=0.05, factor=0.2, initial=0.0),
-            "LeftJoystickY":  AxisFilter(dz=0.10, outer_dz=0.05, factor=0.2, initial=0.0),
-            "RightJoystickX": AxisFilter(dz=0.10, outer_dz=0.05, factor=0.2, initial=0.0),
-            "RightJoystickY": AxisFilter(dz=0.10, outer_dz=0.05, factor=0.2, initial=0.0),
-            "LeftTrigger":    AxisFilter(dz=0.05, outer_dz=0.05, factor=0.2, initial=lt_init),
-            "RightTrigger":   AxisFilter(dz=0.05, outer_dz=0.05, factor=0.2, initial=rt_init),
+            "LeftJoystickX":  AxisFilter(dz=0.10, outer_dz=0.05, factor=1.0, initial=0.0),
+            "LeftJoystickY":  AxisFilter(dz=0.10, outer_dz=0.05, factor=1.0, initial=0.0),
+            "RightJoystickX": AxisFilter(dz=0.10, outer_dz=0.05, factor=1.0, initial=0.0),
+            "RightJoystickY": AxisFilter(dz=0.10, outer_dz=0.05, factor=1.0, initial=0.0),
+            "LeftTrigger":    AxisFilter(dz=0.05, outer_dz=0.05, factor=1.0, initial=lt_init),
+            "RightTrigger":   AxisFilter(dz=0.05, outer_dz=0.05, factor=1.0, initial=rt_init),
         }
 
     def _get_axis_raw(self, name: str) -> float:
