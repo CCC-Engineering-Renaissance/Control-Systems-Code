@@ -146,9 +146,9 @@ int main() {
     }
   });
 
-  PiPCA9685::PCA9685 driver("/dev/i2c-1", 0x40, 0);
+  PiPCA9685::PCA9685 driver("/dev/i2c-4", 0x40, 0);
   driver.set_pwm_freq(50.0);
-  cout << "PCA9685 initialized on /dev/i2c-1 at address 0x40\n";
+  cout << "PCA9685 initialized on /dev/i2c-4 at address 0x40\n";
 
   // ── Telemetry socket: ROV → topside PC ───────────────────────────────────
   int telemSock = socket(AF_INET, SOCK_DGRAM, 0);
