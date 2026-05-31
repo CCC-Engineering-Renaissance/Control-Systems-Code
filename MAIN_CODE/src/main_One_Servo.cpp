@@ -16,7 +16,6 @@
 #include "PID.h"
 #include "IMU.h"
 #include "Depth_Sensor.h"
-#include "TCA9548A.h"
 
 using namespace std;
 
@@ -45,7 +44,6 @@ namespace {
   constexpr auto kTelemInterval         = chrono::milliseconds(50);   // 20 Hz
   constexpr int   kStalePacketMs        = 500;
   constexpr float kMaxDt                = 0.1f;
-  constexpr int   kArmDelayMs           = 3000;
 
   constexpr int   kChClawRotate     = 8;
   constexpr int   kChClawOpen       = 9;
@@ -56,13 +54,28 @@ namespace {
   constexpr int   kClawMaxUs    = 1500 + kClawOffset;
   constexpr float kClawSpeed    = 1.5f;
   constexpr float kMaxThrustCoeff = 0.8f;
-  constexpr float kSlowModePercent = 0.2f;
 
   void signalHandler(int) { keepRunning = 0; }
 
   atomic<float> gDepthMeters{0.0f};
   atomic<float> gTempC{0.0f};
   atomic<bool>  gDepthReady{false};
+
+  atomic<float> gPitch{0.0f};
+  atomic<float> gYaw{0.0f};
+  atomic<float> gRoll{0.0f};
+  atomic<bool>  gImuReady{false};
+}
+
+static void imuThread(IMU& imu) {
+  while (keepRunning) {
+    imu.update();
+    gPitch.store(imu.getPitch(), memory_order_relaxed);
+    gYaw  .store(imu.getYaw(),   memory_order_relaxed);
+    gRoll .store(imu.getRoll(),  memory_order_relaxed);
+    gImuReady.store(true,        memory_order_release);
+    this_thread::sleep_for(chrono::milliseconds(10));  // 100 Hz
+  }
 }
 
 static void depthSensorThread(DepthSensor& sensor) {
@@ -133,9 +146,9 @@ int main() {
     }
   });
 
-  PiPCA9685::PCA9685 driver("/dev/i2c-1", 0x40, TCA9548A::kCh3);
+  PiPCA9685::PCA9685 driver("/dev/i2c-4", 0x40, 0);
   driver.set_pwm_freq(50.0);
-  cout << "PCA9685 initialized on /dev/i2c-1 at address 0x40\n";
+  cout << "PCA9685 initialized on /dev/i2c-4 at address 0x40\n";
 
   // ── Telemetry socket: ROV → topside PC ───────────────────────────────────
   int telemSock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -278,9 +291,11 @@ int main() {
   PID depthPID(0.50f, 0.0f, 0.10f, -1.0f, 1.0f);
 
   unique_ptr<IMU> imu;
+  thread imuThr;
   if (Config::kIMU) {
     imu = make_unique<IMU>();
-    cout << "IMU initialized at 0x68\n";
+    cout << "IMU initialized at 0x68 on /dev/i2c-1\n";
+    imuThr = thread(imuThread, ref(*imu));
   }
 
   DepthSensor depthSensor;
@@ -317,6 +332,7 @@ int main() {
       yawPID.reset();
       pitchPID.reset();
       rollPID.reset();
+      depthPID.reset();
       lastTime = chrono::steady_clock::now();
       if (!wasWaiting) {
         cout << "Waiting for controller packets...\n";
@@ -338,9 +354,10 @@ int main() {
 
     const POVState input = get_State();
 
-    // ALS rising edge — latch depth setpoint once when ALS first turns on
-    if (Config::kDepthSensor && input.als && !prevAls &&
-        gDepthReady.load(memory_order_acquire)) {
+    // ALS rising edge — latch depth setpoint once when ALS first turns on.
+    // Reads gDepthMeters directly so a just-consumed gDepthReady print flag
+    // cannot cause the latch to silently miss and default to 0 m.
+    if (Config::kDepthSensor && input.als && !prevAls) {
       depthSetpoint = gDepthMeters.load(memory_order_relaxed);
       cout << "ALS ON  — depth setpoint locked at "
                 << depthSetpoint << " m\n";
@@ -358,11 +375,10 @@ int main() {
     float measuredYaw   = 0.0f;
     float measuredRoll  = 0.0f;
 
-    if (Config::kIMU && imu) {
-      imu->update();
-      measuredPitch = imu->getPitch();
-      measuredYaw   = imu->getYaw();
-      measuredRoll  = imu->getRoll();
+    if (Config::kIMU && gImuReady.load(memory_order_acquire)) {
+      measuredPitch = gPitch.load(memory_order_relaxed);
+      measuredYaw   = gYaw  .load(memory_order_relaxed);
+      measuredRoll  = gRoll .load(memory_order_relaxed);
     }
 
     float yawPIDOutput   = 0.0f;
@@ -451,6 +467,7 @@ int main() {
 
   stopServer();
   net.join();
+  if (Config::kIMU        && imuThr    .joinable()) imuThr    .join();
   if (Config::kDepthSensor && depthThread.joinable()) depthThread.join();
   if (telemSock >= 0) close(telemSock);
   cout << "\nExiting safely.\n";

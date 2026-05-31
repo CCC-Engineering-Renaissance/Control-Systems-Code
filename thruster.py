@@ -7,7 +7,10 @@ SEND_HZ frames per second.
 
 UDP packet format (space-separated, newline-terminated):
   forward  strafe  vertical  yaw  pitch  roll
-  clawRotate  clawOpen  clawBrushless  reserved0  reserved1  als
+  clawRotate  clawOpen  clawBrushless  pitchAngle  yawAngle  als
+
+ALS telemetry (JSON, sent to local GUI on 127.0.0.1:ALS_PORT each frame):
+  { "als": bool, "pitch": float, "yaw": float }
 """
 
 import json
@@ -21,7 +24,7 @@ import pygame
 # ---------------------------------------------------------------------------
 PI_IP    = "192.168.8.128"
 PORT     = 5005
-ALS_PORT = 5006
+ALS_PORT = 5006   # local GUI listening on this port
 SEND_HZ  = 100
 
 # ---------------------------------------------------------------------------
@@ -218,12 +221,12 @@ class XboxController:
         # once and pre-computes constants so the per-frame __call__ is pure math.
         # Keys match the names used in _get_axis_raw / the main loop.
         self._filters: dict[str, AxisFilter] = {
-            "LeftJoystickX":  AxisFilter(dz=0.10, outer_dz=0.05, factor=1.0, initial=0.0),
-            "LeftJoystickY":  AxisFilter(dz=0.10, outer_dz=0.05, factor=1.0, initial=0.0),
-            "RightJoystickX": AxisFilter(dz=0.10, outer_dz=0.05, factor=1.0, initial=0.0),
-            "RightJoystickY": AxisFilter(dz=0.10, outer_dz=0.05, factor=1.0, initial=0.0),
-            "LeftTrigger":    AxisFilter(dz=0.05, outer_dz=0.05, factor=1.0, initial=lt_init),
-            "RightTrigger":   AxisFilter(dz=0.05, outer_dz=0.05, factor=1.0, initial=rt_init),
+            "LeftJoystickX":  AxisFilter(dz=0.10, outer_dz=0.05, factor=0.2, initial=0.0),
+            "LeftJoystickY":  AxisFilter(dz=0.10, outer_dz=0.05, factor=0.2, initial=0.0),
+            "RightJoystickX": AxisFilter(dz=0.10, outer_dz=0.05, factor=0.2, initial=0.0),
+            "RightJoystickY": AxisFilter(dz=0.10, outer_dz=0.05, factor=0.2, initial=0.0),
+            "LeftTrigger":    AxisFilter(dz=0.05, outer_dz=0.05, factor=0.2, initial=lt_init),
+            "RightTrigger":   AxisFilter(dz=0.05, outer_dz=0.05, factor=0.2, initial=rt_init),
         }
 
     def _get_axis_raw(self, name: str) -> float:
@@ -347,7 +350,7 @@ _PACKET_FMT = (
     "%.4f %.4f %.4f "
     "%.4f %.4f %.4f "
     "%d %d %.4f "
-    "0.0 0.0 %d\n"
+    "%.4f %.4f %d\n"
 )
 
 
@@ -356,17 +359,19 @@ def _build_packet(
     rjx: float, rjy: float,
     roll: float,
     claw_rotate: int, claw_open: int, claw_brushless: float,
+    pitch_angle: float = 0.0, yaw_angle: float = 0.0,
     als: int = 0,
 ) -> bytes:
     """Format the 12-field UDP datagram and return it as bytes.
 
     Fields (space-separated, newline-terminated):
       forward  strafe  vertical  yaw  pitch  roll
-      clawRotate  clawOpen  clawBrushless  reserved0  reserved1  als
+      clawRotate  clawOpen  clawBrushless  pitchAngle  yawAngle  als
     """
     return (_PACKET_FMT % (
         ljy, ljx, vert, rjx, rjy, roll,
-        claw_rotate, claw_open, claw_brushless, als,
+        claw_rotate, claw_open, claw_brushless,
+        pitch_angle, yaw_angle, als,
     )).encode()
 
 
@@ -412,19 +417,19 @@ def main() -> None:
             scale = 0.35 if slow_mode else 0.75
 
             # ── ROV axes ──────────────────────────────────────────────────
-            ljy = joyROV.axis("LeftJoystickY",  dz=0.10, factor=1.0)   # forward/back
-            ljx = joyROV.axis("LeftJoystickX",  dz=0.10, factor=1.0)   # strafe
-            lt  = joyROV.axis("LeftTrigger",    dz=0.05, factor=1.0)   # up
-            rt  = joyROV.axis("RightTrigger",   dz=0.05, factor=1.0)   # down
-            rjy = joyROV.axis("RightJoystickY", dz=0.10, factor=1.0)   # pitch
-            rjx = joyROV.axis("RightJoystickX", dz=0.10, factor=1.0)   # yaw
+            ljy = joyROV.axis("LeftJoystickY",  dz=0.10, factor=0.2)   # forward/back
+            ljx = joyROV.axis("LeftJoystickX",  dz=0.10, factor=0.2)   # strafe
+            lt  = joyROV.axis("LeftTrigger",    dz=0.05, factor=0.2)   # up
+            rt  = joyROV.axis("RightTrigger",   dz=0.05, factor=0.2)   # down
+            rjy = joyROV.axis("RightJoystickY", dz=0.10, factor=0.2)   # pitch
+            rjx = joyROV.axis("RightJoystickX", dz=0.10, factor=0.2)   # yaw
 
             vert = (lt - rt) * scale
 
             # ── Claw controller ───────────────────────────────────────────
             claw_rotate    = int(joyClaw.Y) - int(joyClaw.B)    # Y=+1  B=-1
             claw_open      = int(joyClaw.X) - int(joyClaw.A)
-            claw_brushless = joyClaw.axis("RightTrigger", dz=0.05, factor=1.0)
+            claw_brushless = joyClaw.axis("RightTrigger", dz=0.05, factor=0.2)
 
             roll = (joyROV.RightBumper - joyROV.LeftBumper) * scale
 
@@ -441,6 +446,8 @@ def main() -> None:
                 claw_rotate,
                 claw_open,
                 claw_brushless,
+                pitch_out,
+                yaw_out,
                 int(als),
             )
 

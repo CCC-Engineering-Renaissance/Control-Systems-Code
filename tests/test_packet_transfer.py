@@ -56,13 +56,13 @@ FIELD_NAMES = [
     "forward", "strafe", "vertical",
     "yaw", "pitch", "roll",
     "claw_rotate", "claw_open", "claw_brushless",
-    "reserved0", "reserved1", "als",
+    "pitch_angle", "yaw_angle", "als",
 ]
 
 FLOAT_FIELDS = {
     "forward", "strafe", "vertical",
     "yaw", "pitch", "roll",
-    "claw_brushless", "reserved0", "reserved1",
+    "claw_brushless", "pitch_angle", "yaw_angle",
 }
 
 INT_FIELDS = {"claw_rotate", "claw_open", "als"}
@@ -138,10 +138,18 @@ class TestPacketEncoding:
         worst = _build_packet(-0.9999, -0.9999, -0.9999, -0.9999, -0.9999, -0.9999, -1, -1, -0.9999)
         assert len(worst) < 512, f"Packet too large: {len(worst)} bytes"
 
-    def test_reserved_fields_are_zero(self):
-        parsed = parse_packet(_build_packet(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1, 0, 0.7))
-        assert parsed["reserved0"] == 0.0
-        assert parsed["reserved1"] == 0.0
+    def test_pitch_angle_forwarded(self):
+        """Field 10 (pitchAngle) must carry the value passed as pitch_angle,
+        not a hardcoded 0.0.  Pi's PID uses this as the setpoint."""
+        pkt = _build_packet(0, 0, 0, 0, 0, 0, 0, 0, 0, pitch_angle=0.5)
+        parsed = parse_packet(pkt)
+        assert parsed["pitch_angle"] == pytest.approx(0.5, abs=5e-5)
+
+    def test_yaw_angle_forwarded(self):
+        """Field 11 (yawAngle) must carry the value passed as yaw_angle."""
+        pkt = _build_packet(0, 0, 0, 0, 0, 0, 0, 0, 0, yaw_angle=-0.3)
+        parsed = parse_packet(pkt)
+        assert parsed["yaw_angle"] == pytest.approx(-0.3, abs=5e-5)
 
     def test_als_field_is_zero(self):
         parsed = parse_packet(_build_packet(0, 0, 0, 0, 0, 0, 0, 0, 0))
