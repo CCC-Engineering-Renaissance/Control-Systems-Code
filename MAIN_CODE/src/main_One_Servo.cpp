@@ -320,7 +320,7 @@ int main() {
         std::cout << "Waiting for controller packets...\n";
         wasWaiting = true;
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
       continue;
     }
 
@@ -441,7 +441,7 @@ int main() {
       gDepthReady.store(false, std::memory_order_relaxed);
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
   }
   } catch (const std::exception& e) {
     std::cerr << "\nControl loop exception: " << e.what() << "\n";

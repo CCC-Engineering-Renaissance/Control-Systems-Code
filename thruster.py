@@ -22,7 +22,7 @@ import pygame
 PI_IP    = "192.168.8.128"
 PORT     = 5005
 ALS_PORT = 5006
-SEND_HZ  = 30
+SEND_HZ  = 100
 
 # ---------------------------------------------------------------------------
 # Xbox-style button index mapping (pygame driver default)
