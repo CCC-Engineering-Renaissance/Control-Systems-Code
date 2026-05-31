@@ -146,9 +146,9 @@ int main() {
     }
   });
 
-  PiPCA9685::PCA9685 driver("/dev/i2c-4", 0x40, 0);
+  PiPCA9685::PCA9685 driver("/dev/i2c-1", 0x40, 0);
   driver.set_pwm_freq(50.0);
-  cout << "PCA9685 initialized on /dev/i2c-4 at address 0x40\n";
+  cout << "PCA9685 initialized on /dev/i2c-1 at address 0x40\n";
 
   // ── Telemetry socket: ROV → topside PC ───────────────────────────────────
   int telemSock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -294,7 +294,7 @@ int main() {
   thread imuThr;
   if (Config::kIMU) {
     imu = make_unique<IMU>();
-    cout << "IMU initialized at 0x68 on /dev/i2c-1\n";
+    cout << "IMU initialized at 0x68 on /dev/i2c-4\n";
     imuThr = thread(imuThread, ref(*imu));
   }
 
@@ -302,7 +302,7 @@ int main() {
   thread depthThread;
   if (Config::kDepthSensor) {
     depthThread = thread(depthSensorThread, ref(depthSensor));
-    cout << "Depth sensor thread started on /dev/i2c-1 at 0x76\n";
+    cout << "Depth sensor thread started on /dev/i2c-5 at 0x76\n";
   }
 
   float clawSpinPos = 0.0f;   // ch8 servo position

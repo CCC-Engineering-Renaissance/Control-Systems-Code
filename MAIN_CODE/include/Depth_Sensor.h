@@ -18,9 +18,9 @@ public:
     MS5837_02BA = 1,   // Bar02 — up to  2 bar (~10 m)
   };
 
-  // i2cDevice e.g. "/dev/i2c-1"  (same bus as the PCA9685)
+  // i2cDevice e.g. "/dev/i2c-5"  (GPIO 12/13, physical pins 32/33)
   // address is fixed at 0x76 for the MS5837
-  explicit DepthSensor(const std::string& i2cDevice = "/dev/i2c-1",
+  explicit DepthSensor(const std::string& i2cDevice = "/dev/i2c-5",
                        uint8_t address = 0x76,
                        Model model = MS5837_30BA);
   ~DepthSensor();
