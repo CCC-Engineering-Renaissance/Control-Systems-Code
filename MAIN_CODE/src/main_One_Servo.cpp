@@ -174,6 +174,12 @@ int main() {
   Thruster rearLeftHorizontal(6);
   Thruster rearRightHorizontal(7);
 
+  // Vertical thruster positions (inferred from the counter-rotating prop
+  // layout — CW/CCW alternate on diagonals): ch2 = front-left,
+  // ch3 = front-right, ch4 = rear-left, ch5 = rear-right.
+  // The mixer gives +pitch to ch2/ch3 (front rises = nose up) and +roll to
+  // the left pair (left rises = roll right). If pitch or roll moves the
+  // wrong way in water, these position assumptions are what to re-check.
   Thruster leftVertical(2);
   Thruster rightVertical(3);
   Thruster leftVertical2(4);
