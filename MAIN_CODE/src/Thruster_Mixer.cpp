@@ -43,9 +43,11 @@ Thruster_Outputs Thruster_Mixer::mix(const POVState& input,
   float Total_Yaw = yawCommand + Yaw_PID_Output;
 
   // Mix forward/strafe/yaw into 4 horizontal thrusters | side note: yaw is rotation about z axis
-  output.frontLeftHorizontal  = forwardCommand + strafeCommand + Total_Yaw;
+  // Left-side strafe signs are flipped to match how the thrusters are actually wired/mounted;
+  // if strafe comes out mirrored in the water, flip the strafe signs on the right pair instead.
+  output.frontLeftHorizontal  = forwardCommand - strafeCommand + Total_Yaw;
   output.frontRightHorizontal = forwardCommand - strafeCommand - Total_Yaw;
-  output.rearLeftHorizontal   = forwardCommand - strafeCommand + Total_Yaw;
+  output.rearLeftHorizontal   = forwardCommand + strafeCommand + Total_Yaw;
   output.rearRightHorizontal  = forwardCommand + strafeCommand - Total_Yaw;
 
 
