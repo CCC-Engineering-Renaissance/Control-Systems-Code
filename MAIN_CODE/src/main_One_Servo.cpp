@@ -183,6 +183,7 @@ int main() {
   rightVertical2.setInverted(true);
   rearLeftHorizontal.setInverted(true);
   rearRightHorizontal.setInverted(true);
+  frontLeftHorizontal.setInverted(true);
 
   Claw clawSpin(kChClawRotate, kClawRest, kClawOffset);  // ch8 — servo, Y=open / B=close
   clawSpin.setLimits(kClawMinUs, kClawMaxUs);
