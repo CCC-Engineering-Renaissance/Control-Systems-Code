@@ -409,11 +409,10 @@ int main() {
     }
 
     POVState mixInput = input;
-    // Forward is NOT negated here: +forward from thruster.py (stick up) drives the
-    // ROV forward through the mixer as-is. The old -forward here, combined with a
-    // -forward inside the mixer, was a double negative — both have been removed.
-    // Yaw stays negated to preserve the turning direction that tested correct in water.
-    mixInput.yaw = -mixInput.yaw;
+    // No sign fix-ups here: +forward (left stick up) = forward, and +yaw
+    // (right stick right) = twist right — the mixer drives the left-side
+    // horizontals forward and right-side backward for +yaw. The old -yaw
+    // negation made stick-right twist the nose left, so it was removed.
     if (Config::kPID && input.als) {
       mixInput.yaw      = 0.0f;   // PID drives yaw
       mixInput.pitch    = 0.0f;   // PID drives pitch

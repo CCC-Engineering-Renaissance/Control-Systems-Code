@@ -419,12 +419,13 @@ def main() -> None:
             # ── ROV axes ──────────────────────────────────────────────────
             ljy = joyROV.axis("LeftJoystickY",  dz=0.10, factor=0.2)   # forward/back
             ljx = joyROV.axis("LeftJoystickX",  dz=0.10, factor=0.2)   # strafe
-            lt  = joyROV.axis("LeftTrigger",    dz=0.05, factor=0.2)   # up
-            rt  = joyROV.axis("RightTrigger",   dz=0.05, factor=0.2)   # down
+            lt  = joyROV.axis("LeftTrigger",    dz=0.05, factor=0.2)   # descend
+            rt  = joyROV.axis("RightTrigger",   dz=0.05, factor=0.2)   # ascend
             rjy = joyROV.axis("RightJoystickY", dz=0.10, factor=0.2)   # pitch
-            rjx = joyROV.axis("RightJoystickX", dz=0.10, factor=0.2)   # yaw
+            rjx = joyROV.axis("RightJoystickX", dz=0.10, factor=0.2)   # yaw (twist)
 
-            vert = (lt - rt) * scale
+            # RT = ascend (+vertical), LT = descend (-vertical)
+            vert = (rt - lt) * scale
 
             # ── Claw controller ───────────────────────────────────────────
             claw_rotate    = int(joyClaw.Y) - int(joyClaw.B)    # Y=+1  B=-1

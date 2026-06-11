@@ -37,9 +37,8 @@ struct Rig {
     ch4.setInverted(true);  // leftVertical2
   }
 
-  // Mirrors the OneServo control loop: negate manual yaw, mix, apply power.
+  // Mirrors the OneServo control loop: mix, apply power (no sign fix-ups).
   void drive(POVState in) {
-    in.yaw = -in.yaw;
     const Thruster_Outputs o = mixer.mix(in);
     ch0.setPower(o.frontLeftHorizontal  * kMaxThrustCoeff, driver);
     ch1.setPower(o.frontRightHorizontal * kMaxThrustCoeff, driver);
@@ -78,16 +77,16 @@ void anchor_forward_backward() {
 }
 
 void anchor_ascend_descend() {
-  std::cout << "[anchor] left trigger = ascend (verified in water)\n";
+  std::cout << "[anchor] right trigger = ascend (spins verified in water)\n";
   Rig r;
   POVState s{};
-  s.vertical = 0.75f;  // LT, thruster.py sends +
+  s.vertical = 0.75f;  // RT, thruster.py sends + (vert = rt - lt)
   r.drive(s);
   require(cw (r.ch2), "ascend: ch2 CW (=rise)");
   require(ccw(r.ch3), "ascend: ch3 CCW (=rise)");
   require(ccw(r.ch4), "ascend: ch4 CCW (=rise)");
   require(cw (r.ch5), "ascend: ch5 CW (=rise)");
-  s.vertical = -0.75f;  // RT
+  s.vertical = -0.75f;  // LT
   r.drive(s);
   require(ccw(r.ch2) && cw(r.ch3) && cw(r.ch4) && ccw(r.ch5),
           "descend: all four verticals reversed");
@@ -149,15 +148,24 @@ void report_unverifiable() {
             << " ch0=" << r.ch0.getPWM() << " ch1=" << r.ch1.getPWM()
             << " ch6=" << r.ch6.getPWM() << " ch7=" << r.ch7.getPWM()
             << "  (lateral direction depends on mount angles — water test)\n";
-  s = POVState{};
-  s.yaw = 0.75f;  // right stick right
+}
+
+void derived_yaw() {
+  std::cout << "[derived] right stick right = twist right\n";
+  Rig r;
+  POVState s{};
+  s.yaw = 0.75f;  // stick right, thruster.py sends +
   r.drive(s);
-  std::cout << "[info] yaw stick right: left side ch0=" << r.ch0.getPWM()
-            << " ch6=" << r.ch6.getPWM()
-            << ", right side ch1=" << r.ch1.getPWM()
-            << " ch7=" << r.ch7.getPWM()
-            << "  (left reverses, right forward => nose LEFT; flip the"
-               " yaw negation in main_One_Servo if wrong in water)\n";
+  // Twist right = left-side horizontals thrust forward, right side reverse
+  // (forward-thrust spins per the forward/backward anchor).
+  require(cw (r.ch0), "yaw right: ch0 (front-left)  CW  = fwd thrust");
+  require(cw (r.ch6), "yaw right: ch6 (rear-left)   CW  = fwd thrust");
+  require(cw (r.ch1), "yaw right: ch1 (front-right) CW  = rev thrust (CCW=fwd)");
+  require(ccw(r.ch7), "yaw right: ch7 (rear-right)  CCW = rev thrust");
+  s.yaw = -0.75f;  // stick left
+  r.drive(s);
+  require(ccw(r.ch0) && ccw(r.ch6) && ccw(r.ch1) && cw(r.ch7),
+          "yaw left: mirror of yaw right = twist left");
 }
 
 }  // namespace
@@ -168,6 +176,7 @@ int main() {
     anchor_ascend_descend();
     derived_roll();
     derived_pitch();
+    derived_yaw();
     derived_depth_hold();
     report_unverifiable();
   } catch (const std::exception& e) {
