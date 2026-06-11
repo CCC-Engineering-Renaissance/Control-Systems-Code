@@ -179,11 +179,13 @@ int main() {
   Thruster leftVertical2(4);
   Thruster rightVertical2(5);
 
-  leftVertical.setInverted(true);
+  // Inversion flags for current blade config (positive power = CW spin):
+  //   ch0 CW=fwd, ch1 CCW=fwd, ch6/ch7 rear-facing CW=fwd
+  //   ch2 CW=down, ch3/ch4 CCW=down, ch5 unchanged (CCW=down)
+  frontRightHorizontal.setInverted(true);
+  rightVertical.setInverted(true);
+  leftVertical2.setInverted(true);
   rightVertical2.setInverted(true);
-  rearLeftHorizontal.setInverted(true);
-  rearRightHorizontal.setInverted(true);
-  frontLeftHorizontal.setInverted(true);
 
   Claw clawSpin(kChClawRotate, kClawRest, kClawOffset);  // ch8 — servo, Y=open / B=close
   clawSpin.setLimits(kClawMinUs, kClawMaxUs);
