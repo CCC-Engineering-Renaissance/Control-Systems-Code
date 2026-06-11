@@ -410,9 +410,9 @@ int main() {
 
     POVState mixInput = input;
     // No sign fix-ups here: +forward (left stick up) = forward, and +yaw
-    // (right stick right) = twist right — the mixer drives the left-side
-    // horizontals forward and right-side backward for +yaw. The old -yaw
-    // negation made stick-right twist the nose left, so it was removed.
+    // (right stick right) = twist right — the mixer drives the diagonal
+    // pairs (front-left & rear-right forward, front-right & rear-left
+    // reverse) for +yaw. The old -yaw negation was removed.
     if (Config::kPID && input.als) {
       mixInput.yaw      = 0.0f;   // PID drives yaw
       mixInput.pitch    = 0.0f;   // PID drives pitch

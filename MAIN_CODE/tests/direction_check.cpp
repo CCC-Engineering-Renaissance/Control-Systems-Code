@@ -156,15 +156,15 @@ void derived_yaw() {
   POVState s{};
   s.yaw = 0.75f;  // stick right, thruster.py sends +
   r.drive(s);
-  // Twist right = left-side horizontals thrust forward, right side reverse
-  // (forward-thrust spins per the forward/backward anchor).
+  // User-specified spins for twist right: ch0 CW, ch1 CW, ch6 CCW, ch7 CW
+  // (diagonal pattern: front-left & rear-right fwd, front-right & rear-left rev).
   require(cw (r.ch0), "yaw right: ch0 (front-left)  CW  = fwd thrust");
-  require(cw (r.ch6), "yaw right: ch6 (rear-left)   CW  = fwd thrust");
   require(cw (r.ch1), "yaw right: ch1 (front-right) CW  = rev thrust (CCW=fwd)");
-  require(ccw(r.ch7), "yaw right: ch7 (rear-right)  CCW = rev thrust");
+  require(ccw(r.ch6), "yaw right: ch6 (rear-left)   CCW = rev thrust");
+  require(cw (r.ch7), "yaw right: ch7 (rear-right)  CW  = fwd thrust");
   s.yaw = -0.75f;  // stick left
   r.drive(s);
-  require(ccw(r.ch0) && ccw(r.ch6) && ccw(r.ch1) && cw(r.ch7),
+  require(ccw(r.ch0) && ccw(r.ch1) && cw(r.ch6) && ccw(r.ch7),
           "yaw left: mirror of yaw right = twist left");
 }
 

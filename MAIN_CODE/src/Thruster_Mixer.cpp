@@ -50,10 +50,13 @@ Thruster_Outputs Thruster_Mixer::mix(const POVState& input,
   // every time forward gets corrected.
   // Left-side strafe signs are flipped to match how the thrusters are actually wired/mounted;
   // if strafe comes out mirrored in the water, flip the strafe signs on the right pair instead.
+  // Yaw uses DIAGONAL pairs: +yaw (twist right) = front-left & rear-right
+  // thrust forward, front-right & rear-left thrust reverse. In spin terms
+  // for the current blade config: ch0 CW, ch1 CW, ch6 CCW, ch7 CW.
   output.frontLeftHorizontal  = forwardCommand - strafeCommand + Total_Yaw;
   output.frontRightHorizontal = forwardCommand - strafeCommand - Total_Yaw;
-  output.rearLeftHorizontal   = forwardCommand + strafeCommand + Total_Yaw;
-  output.rearRightHorizontal  = forwardCommand + strafeCommand - Total_Yaw;
+  output.rearLeftHorizontal   = forwardCommand + strafeCommand - Total_Yaw;
+  output.rearRightHorizontal  = forwardCommand + strafeCommand + Total_Yaw;
 
 
   Thruster_Mixer::normalize4(
