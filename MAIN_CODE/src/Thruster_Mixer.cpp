@@ -43,16 +43,17 @@ Thruster_Outputs Thruster_Mixer::mix(const POVState& input,
   float Total_Yaw = yawCommand + Yaw_PID_Output;
 
   // Mix forward/strafe/yaw into 4 horizontal thrusters | side note: yaw is rotation about z axis
-  // Forward is negated on all four horizontals: with +forwardCommand the ROV drove backward
-  // (front/rear thrusters push opposite to their wiring), so the front and rear pairs are
-  // reversed here. Strafe and yaw signs are kept as-is so left/right and turning still match
-  // the in-water behavior that was already correct.
+  // Sign convention: +forward command = forward thrust on every horizontal thruster.
+  // Per-thruster wiring/blade differences must be handled with Thruster::setInverted
+  // at construction (see main_One_Servo.cpp), NOT by flipping signs here — keeping
+  // direction fixes out of the mix equations is what keeps strafe/yaw from breaking
+  // every time forward gets corrected.
   // Left-side strafe signs are flipped to match how the thrusters are actually wired/mounted;
   // if strafe comes out mirrored in the water, flip the strafe signs on the right pair instead.
-  output.frontLeftHorizontal  = -forwardCommand - strafeCommand + Total_Yaw;
-  output.frontRightHorizontal = -forwardCommand - strafeCommand - Total_Yaw;
-  output.rearLeftHorizontal   = -forwardCommand + strafeCommand + Total_Yaw;
-  output.rearRightHorizontal  = -forwardCommand + strafeCommand - Total_Yaw;
+  output.frontLeftHorizontal  = forwardCommand - strafeCommand + Total_Yaw;
+  output.frontRightHorizontal = forwardCommand - strafeCommand - Total_Yaw;
+  output.rearLeftHorizontal   = forwardCommand + strafeCommand + Total_Yaw;
+  output.rearRightHorizontal  = forwardCommand + strafeCommand - Total_Yaw;
 
 
   Thruster_Mixer::normalize4(

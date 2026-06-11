@@ -180,12 +180,15 @@ int main() {
   Thruster rightVertical2(5);
 
   // Inversion flags for current blade config (positive power = CW spin):
-  //   ch0 CW=fwd, ch1 CCW=fwd, ch6/ch7 rear-facing CW=fwd
-  //   ch2 CW=down, ch3/ch4 CCW=down, ch5 unchanged (CCW=down)
+  //   Horizontals: ch0 CW=fwd, ch1 CCW=fwd, ch6/ch7 rear-facing CW=fwd
+  //   Verticals — spin needed to RISE: ch2 CW, ch3 CCW, ch4 CCW, ch5 CW
+  // Convention: +vertical command = rise (left trigger), -vertical = descend
+  // (right trigger). ch3/ch4 need inversion so +command spins them CCW;
+  // ch2/ch5 rise on CW so they stay non-inverted. (ch5 used to be inverted,
+  // which made it pull down while the other three pulled up on ascend.)
   frontRightHorizontal.setInverted(true);
   rightVertical.setInverted(true);
   leftVertical2.setInverted(true);
-  rightVertical2.setInverted(true);
 
   Claw clawSpin(kChClawRotate, kClawRest, kClawOffset);  // ch8 — servo, Y=open / B=close
   clawSpin.setLimits(kClawMinUs, kClawMaxUs);
@@ -400,16 +403,21 @@ int main() {
     }
 
     POVState mixInput = input;
-    mixInput.forward = -mixInput.forward;
+    // Forward is NOT negated here: +forward from thruster.py (stick up) drives the
+    // ROV forward through the mixer as-is. The old -forward here, combined with a
+    // -forward inside the mixer, was a double negative — both have been removed.
+    // Yaw stays negated to preserve the turning direction that tested correct in water.
     mixInput.yaw = -mixInput.yaw;
     if (Config::kPID && input.als) {
       mixInput.yaw      = 0.0f;   // PID drives yaw
       mixInput.pitch    = 0.0f;   // PID drives pitch
       mixInput.roll     = 0.0f;   // PID drives roll
-      // Depth hold: PID output feeds vertical; override manual vertical
+      // Depth hold: PID output feeds vertical; override manual vertical.
+      // Depth is measured positive-DOWN but +vertical = rise, so the PID
+      // output is negated: too deep (measured > setpoint) => +vertical (rise).
       float currentDepth    = gDepthMeters.load(memory_order_relaxed);
       float depthOutput     = depthPID.update(depthSetpoint, currentDepth, dt);
-      mixInput.vertical     = depthOutput;
+      mixInput.vertical     = -depthOutput;
     }
 
     const Thruster_Outputs output =
