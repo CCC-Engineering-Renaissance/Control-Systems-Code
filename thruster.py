@@ -13,6 +13,7 @@ ALS telemetry (JSON, sent to local GUI on 127.0.0.1:ALS_PORT each frame):
   { "als": bool, "pitch": float, "yaw": float }
 """
 
+import argparse
 import json
 import socket
 import sys
@@ -291,11 +292,17 @@ class XboxController:
 # Controller setup
 # ---------------------------------------------------------------------------
 
-def get_controllers() -> tuple[XboxController, XboxController]:
+def get_controllers(
+    rov_idx: int | None = None,
+    claw_idx: int | None = None,
+) -> tuple[XboxController, XboxController]:
     """Initialise pygame, enumerate joysticks, and return (rov, claw) pair.
 
     Creates a small on-screen window so Windows does not kill the process
     and so pygame captures controller events rather than the OS.
+
+    When *rov_idx*/*claw_idx* are given (e.g. from the GUI via --rov-index /
+    --claw-index), the interactive prompts are skipped.
 
     Raises RuntimeError if fewer than 2 controllers are found, or if the
     user supplies invalid / duplicate controller indices.
@@ -320,11 +327,12 @@ def get_controllers() -> tuple[XboxController, XboxController]:
         print(f"  [{i}] {js.get_name()}")
         joysticks.append(js)
 
-    try:
-        rov_idx  = int(input("Select ROV controller index:  "))
-        claw_idx = int(input("Select Claw controller index: "))
-    except ValueError:
-        raise RuntimeError("Invalid controller index entered.")
+    if rov_idx is None or claw_idx is None:
+        try:
+            rov_idx  = int(input("Select ROV controller index:  "))
+            claw_idx = int(input("Select Claw controller index: "))
+        except ValueError:
+            raise RuntimeError("Invalid controller index entered.")
 
     if rov_idx == claw_idx:
         raise RuntimeError("ROV and Claw controllers must be different indices.")
@@ -376,7 +384,15 @@ def _build_packet(
 
 
 def main() -> None:
-    joyROV, joyClaw = get_controllers()
+    parser = argparse.ArgumentParser(
+        description="ROV laptop-side controller-input → UDP sender")
+    parser.add_argument("--rov-index", type=int, default=None,
+                        help="joystick index for the ROV pad (skips the prompt)")
+    parser.add_argument("--claw-index", type=int, default=None,
+                        help="joystick index for the Claw pad (skips the prompt)")
+    args = parser.parse_args()
+
+    joyROV, joyClaw = get_controllers(args.rov_index, args.claw_index)
 
     slow_mode   = False
     slow_pushed = False
@@ -488,7 +504,8 @@ if __name__ == "__main__":
         print("\nStopped by user.")
     except Exception as exc:
         print(f"\nthruster.py error: {exc}", file=sys.stderr)
-        input("Press Enter to exit...")   # keeps PowerShell open to show the error
+        if sys.stdin.isatty():
+            input("Press Enter to exit...")   # keeps PowerShell open to show the error
         raise SystemExit(1)
     finally:
         pygame.quit()
