@@ -306,7 +306,7 @@ int main() {
   thread imuThr;
   if (Config::kIMU) {
     imu = make_unique<IMU>();
-    cout << "IMU initialized at 0x68 on /dev/i2c-4\n";
+    cout << "IMU initialized at 0x68 on /dev/i2c-1\n";
     imuThr = thread(imuThread, ref(*imu));
   }
 
