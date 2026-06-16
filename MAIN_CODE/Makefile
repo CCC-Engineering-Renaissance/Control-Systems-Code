@@ -1,6 +1,7 @@
 TARGET          := rov
 TARGET_ONE      := OneServo
 TARGET_SPINCLAW := spinClaw
+TARGET_DEPTH    := depthtest
 CXX             := g++
 CXXFLAGS        := -std=c++17 -g -O0 -Wall -Wextra -pthread
 INCLUDES        := -I./include
@@ -9,8 +10,16 @@ LIBS            := -lboost_system -li2c
 ROV_OBJS       := out/main.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o out/TCA9548A.o
 ONE_SERVO_OBJS := out/main_One_Servo.o out/connection.o out/Thruster_Mixer.o out/Thruster.o out/PID.o out/Claw.o out/PCA9685.o out/I2CPeripheral.o out/IMU.o out/MPU6050.o out/Depth_Sensor.o out/TCA9548A.o
 SPINCLAW_OBJS  := out/spinClaw.o out/Thruster.o out/PCA9685.o out/I2CPeripheral.o out/TCA9548A.o
+DEPTH_OBJS     := out/depth_test.o out/Depth_Sensor.o
 
 all: out $(TARGET) $(TARGET_ONE) $(TARGET_SPINCLAW)
+
+# Standalone depth-sensor tester (not built by `all`): make depthtest
+$(TARGET_DEPTH): out $(DEPTH_OBJS)
+	$(CXX) $(CXXFLAGS) $(DEPTH_OBJS) -o $(TARGET_DEPTH)
+
+out/depth_test.o: src/depth_test.cpp include/Depth_Sensor.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 $(TARGET_SPINCLAW): $(SPINCLAW_OBJS)
 	$(CXX) $(CXXFLAGS) $(SPINCLAW_OBJS) $(LIBS) -o $(TARGET_SPINCLAW)
@@ -67,4 +76,4 @@ out:
 	mkdir -p out
 
 clean:
-	rm -f $(TARGET) $(TARGET_ONE) $(TARGET_SPINCLAW) out/*.o
+	rm -f $(TARGET) $(TARGET_ONE) $(TARGET_SPINCLAW) $(TARGET_DEPTH) out/*.o

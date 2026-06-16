@@ -5,8 +5,10 @@
 #include <sys/ioctl.h>
 #include <linux/i2c-dev.h>
 
+#include <cerrno>
 #include <chrono>
 #include <cstring>
+#include <iostream>
 #include <thread>
 
 // ── MS5837 command set ──────────────────────────────────────────────────────
@@ -14,9 +16,10 @@ namespace {
   constexpr uint8_t CMD_RESET     = 0x1E;
   constexpr uint8_t CMD_ADC_READ  = 0x00;
   constexpr uint8_t CMD_PROM_READ = 0xA0;   // base address; +2 per coefficient
-  // OSR=8192 (highest resolution). Pressure D1 = 0x48, Temperature D2 = 0x58.
-  constexpr uint8_t CMD_CONVERT_D1 = 0x48;
-  constexpr uint8_t CMD_CONVERT_D2 = 0x58;
+  // OSR=8192 (highest resolution). Pressure D1 = 0x4A, Temperature D2 = 0x5A.
+  // (0x48/0x58 are OSR=4096; 0x4A/0x5A are OSR=8192 per the MS5837 datasheet.)
+  constexpr uint8_t CMD_CONVERT_D1 = 0x4A;
+  constexpr uint8_t CMD_CONVERT_D2 = 0x5A;
 
   void sleepMs(int ms) {
     std::this_thread::sleep_for(std::chrono::milliseconds(ms));
@@ -39,31 +42,53 @@ bool DepthSensor::readBytes(uint8_t* dst, int n) {
 }
 
 bool DepthSensor::init() {
-  fd_ = ::open(i2cDevice_.c_str(), O_RDWR);
-  if (fd_ < 0) return false;
-
-  if (::ioctl(fd_, I2C_SLAVE, address_) < 0) {
-    ::close(fd_);
-    fd_ = -1;
+  auto fail = [this](const char* msg, bool withErrno) {
+    std::cerr << "DepthSensor init: " << msg;
+    if (withErrno) std::cerr << " (" << std::strerror(errno) << ")";
+    std::cerr << "\n";
+    if (fd_ >= 0) { ::close(fd_); fd_ = -1; }
     return false;
-  }
+  };
 
-  // Reset the chip and let it reload its PROM
-  if (!writeCommand(CMD_RESET)) return false;
+  fd_ = ::open(i2cDevice_.c_str(), O_RDWR);
+  if (fd_ < 0)
+    return fail(("cannot open " + i2cDevice_ +
+                 " — is the i2c-gpio overlay configured for this bus?").c_str(), true);
+
+  if (::ioctl(fd_, I2C_SLAVE, address_) < 0)
+    return fail("ioctl(I2C_SLAVE) failed", true);
+
+  // Reset the chip and let it reload its PROM. A failure here means the device
+  // did not ACK at this address — check wiring (SDA/SCL/3V3/GND) and address.
+  if (!writeCommand(CMD_RESET))
+    return fail("no ACK from sensor at 0x76 — check wiring/address/pull-ups", true);
   sleepMs(10);
 
   // Read the 7 PROM words (C0 = factory/CRC, C1..C6 = calibration)
+  uint16_t promOr = 0, promAnd = 0xFFFF;
   for (uint8_t i = 0; i < 7; ++i) {
-    if (!writeCommand(CMD_PROM_READ + i * 2)) return false;
+    if (!writeCommand(CMD_PROM_READ + i * 2))
+      return fail("PROM read command failed", true);
     uint8_t buf[2] = {0, 0};
-    if (!readBytes(buf, 2)) return false;
+    if (!readBytes(buf, 2))
+      return fail("PROM read returned no data", true);
     C_[i] = (static_cast<uint16_t>(buf[0]) << 8) | buf[1];
+    promOr |= C_[i];
+    promAnd &= C_[i];
   }
+
+  // A sensor that is not really responding often returns all-0x00 or all-0xFF
+  // on the bus without a syscall error. Reject those before the CRC check.
+  if (promOr == 0x0000 || promAnd == 0xFFFF)
+    return fail("PROM is all 0x00/0xFF — sensor not responding (wiring/pull-ups)", false);
 
   // Validate the calibration with the chip's CRC4
   uint8_t crcRead = (C_[0] >> 12) & 0x0F;
   uint8_t crcCalc = crc4(C_);
-  return crcRead == crcCalc;
+  if (crcRead != crcCalc)
+    return fail("PROM CRC mismatch — noisy bus or wrong device", false);
+
+  return true;
 }
 
 uint32_t DepthSensor::readAdc(uint8_t convertCmd) {
