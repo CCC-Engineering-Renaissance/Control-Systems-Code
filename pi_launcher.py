@@ -39,6 +39,26 @@ import time
 PROTOCOL_VERSION = 1
 TAIL_KEEP = 500          # output lines kept per task
 
+
+def resolve_python(base_dir: str, override: str | None) -> str:
+    """Pick the interpreter for Python tasks.
+
+    The daemon itself runs under the system python3, but the scripts it
+    launches (camera_server.py, etc.) need their own dependencies (cv2, …).
+    Prefer an in-repo virtualenv so those imports resolve, regardless of what
+    the systemd PATH points "python3" at.
+
+    Order: explicit override / $ROV_PYTHON, then venv312, then venv, then the
+    system python3.
+    """
+    if override:
+        return os.path.abspath(os.path.expanduser(override))
+    for venv in ("venv312", "venv"):
+        cand = os.path.join(base_dir, venv, "bin", "python")
+        if os.path.exists(cand):
+            return cand
+    return "python3"
+
 # name -> (command, cwd relative to --dir, pre-start check relative to --dir)
 TASKS: dict[str, dict] = {
     "oneservo": {
@@ -215,16 +235,27 @@ def main() -> None:
                         help="TCP port to listen on (default 5010)")
     parser.add_argument("--dir", default=os.path.dirname(os.path.abspath(__file__)),
                         help="Control-Systems-Code directory (default: script's own)")
+    parser.add_argument("--python", default=os.environ.get("ROV_PYTHON"),
+                        help="interpreter for Python tasks (default: auto-detect "
+                             "venv312/venv in --dir, else system python3)")
     args = parser.parse_args()
 
     base_dir = os.path.abspath(os.path.expanduser(args.dir))
-    tasks = {name: TaskProc(name, spec, base_dir) for name, spec in TASKS.items()}
+    python_bin = resolve_python(base_dir, args.python)
+
+    # Run Python tasks through the resolved interpreter so their deps resolve.
+    tasks = {}
+    for name, spec in TASKS.items():
+        spec = dict(spec)
+        spec["cmd"] = [python_bin if c == "python3" else c for c in spec["cmd"]]
+        tasks[name] = TaskProc(name, spec, base_dir)
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind(("0.0.0.0", args.port))
     server.listen(4)
     print(f"pi_launcher listening on 0.0.0.0:{args.port}, dir={base_dir}")
+    print(f"python for tasks: {python_bin}")
     print(f"tasks: {', '.join(TASKS)}")
 
     try:
