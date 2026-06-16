@@ -1,4 +1,4 @@
-#!/home/aidhx/Control-Systems-Code/venv/bin/python
+#!/home/jjorjk/Projects/Control-Systems-Code/venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys
