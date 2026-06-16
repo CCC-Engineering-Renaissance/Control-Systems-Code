@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # One-time install of the ROV launcher daemon on the Raspberry Pi.
 #
-# Usage (after this repo is pulled onto the Pi at ~/Control-Systems-Code):
-#   ssh pi@192.168.8.128 'cd ~/Control-Systems-Code && bash install_pi.sh'
+# Run this ON the Pi, from inside the repo:
+#   cd ~/Control-Systems-Code && bash install_pi.sh
 #
-# If the repo lives elsewhere or the user is not "pi", edit the paths in
-# rov-launcher.service before running this.
+# The systemd unit is generated for the CURRENT user and repo path, so it
+# works regardless of the Pi's username (it does NOT assume "pi"). Override
+# the port with: ROV_DAEMON_PORT=5011 bash install_pi.sh
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -38,7 +39,41 @@ if [ -n "$BOOT_CONFIG" ]; then
   fi
 fi
 
-sudo cp rov-launcher.service /etc/systemd/system/
+# ── Launcher daemon systemd unit ─────────────────────────────────────────────
+# Generated from the current user + repo path so it never assumes "pi".
+REPO="$(pwd)"
+RUN_USER="$(whoami)"
+PYTHON="$(command -v python3 || true)"
+PORT="${ROV_DAEMON_PORT:-5010}"
+
+if [ ! -f "$REPO/pi_launcher.py" ]; then
+  echo "error: pi_launcher.py not found in $REPO — run this from the repo on the Pi." >&2
+  exit 1
+fi
+if [ -z "$PYTHON" ]; then
+  echo "error: python3 not found in PATH." >&2
+  exit 1
+fi
+
+echo "Installing rov-launcher.service: user=$RUN_USER repo=$REPO python=$PYTHON port=$PORT"
+
+sudo tee /etc/systemd/system/rov-launcher.service >/dev/null <<EOF
+[Unit]
+Description=ROV task launcher daemon (pi_launcher.py)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=$RUN_USER
+ExecStart=$PYTHON -u $REPO/pi_launcher.py --dir $REPO --port $PORT
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 sudo systemctl daemon-reload
+sudo systemctl reset-failed rov-launcher 2>/dev/null || true
 sudo systemctl enable --now rov-launcher
 systemctl status rov-launcher --no-pager
