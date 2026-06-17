@@ -59,6 +59,7 @@ namespace {
 
   atomic<float> gDepthMeters{0.0f};
   atomic<float> gTempC{0.0f};
+  atomic<float> gPressureMbar{0.0f};
   atomic<bool>  gDepthReady{false};
 
   atomic<float> gPitch{0.0f};
@@ -92,6 +93,7 @@ static void depthSensorThread(DepthSensor& sensor) {
     if (sensor.read()) {
       gDepthMeters.store(sensor.getDepthMeters(),   memory_order_relaxed);
       gTempC      .store(sensor.getTemperatureC(),   memory_order_relaxed);
+      gPressureMbar.store(sensor.getPressureMbar(),  memory_order_relaxed);
       gDepthReady .store(true,                       memory_order_release);
     } else {
       this_thread::sleep_for(chrono::milliseconds(50));
@@ -442,17 +444,18 @@ int main() {
     if (telemSock >= 0 && tNow - lastTelemSend >= kTelemInterval) {
       float depth = gDepthMeters.load(memory_order_relaxed);
       float temp  = gTempC.load(memory_order_relaxed);
+      float pressure = gPressureMbar.load(memory_order_relaxed);
 
       char buf[512];
       int n = snprintf(buf, sizeof(buf),
-          "{\"depth\":%.3f,\"temp\":%.2f,"
+          "{\"depth\":%.3f,\"temp\":%.2f,\"pressure\":%.2f,"
           "\"pitch\":%.2f,\"yaw\":%.2f,\"roll\":%.2f,"
           "\"depth_setpoint\":%.3f,\"als\":%s,"
           "\"yaw_kp\":%.4f,\"yaw_ki\":%.4f,\"yaw_kd\":%.4f,"
           "\"pitch_kp\":%.4f,\"pitch_ki\":%.4f,\"pitch_kd\":%.4f,"
           "\"roll_kp\":%.4f,\"roll_ki\":%.4f,\"roll_kd\":%.4f,"
           "\"depth_kp\":%.4f,\"depth_ki\":%.4f,\"depth_kd\":%.4f}",
-          depth, temp,
+          depth, temp, pressure,
           measuredPitch, measuredYaw, measuredRoll,
           depthSetpoint,
           input.als ? "true" : "false",
