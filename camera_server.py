@@ -214,6 +214,15 @@ class CameraServer:
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, mode["height"])
         cap.set(cv2.CAP_PROP_FPS,          mode["fps"])
 
+        # Forward the camera's MJPEG frames without decoding them: ask OpenCV to
+        # return the raw JPEG bytes (CONVERT_RGB=0) instead of a decoded BGR
+        # image, and keep only the newest frame. This drops a full JPEG
+        # decode + re-encode per frame on the Pi — the main FPS bottleneck.
+        # If a camera/backend ignores CONVERT_RGB, read() still returns a
+        # 3-D BGR array and the capture loop falls back to re-encoding.
+        cap.set(cv2.CAP_PROP_CONVERT_RGB, 0)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE,  1)
+
         with self._lock:
             if self._cap is not None:
                 self._cap.release()
@@ -336,11 +345,21 @@ class CameraServer:
 
             with self._lock:
                 mode_cfg = MODES[self._mode]
-            encode_params = [cv2.IMWRITE_JPEG_QUALITY, mode_cfg["jpeg_quality"]]
 
-            ok, buf = cv2.imencode(".jpg", frame, encode_params)
-            if ok:
-                self._broadcast(buf.tobytes())
+            # With CONVERT_RGB=0 the camera's MJPEG comes back as raw bytes (a
+            # 1-D / single-row array) — broadcast it untouched. A 3-D array means
+            # OpenCV decoded to BGR after all, so re-encode that frame to JPEG.
+            if frame.ndim == 3:
+                ok, buf = cv2.imencode(
+                    ".jpg", frame,
+                    [cv2.IMWRITE_JPEG_QUALITY, mode_cfg["jpeg_quality"]],
+                )
+                data = buf.tobytes() if ok else None
+            else:
+                data = frame.tobytes()
+
+            if data:
+                self._broadcast(data)
 
             elapsed = time.monotonic() - t0
             wait    = (1.0 / mode_cfg["fps"]) - elapsed
