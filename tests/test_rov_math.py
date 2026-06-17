@@ -228,6 +228,28 @@ class TestXboxController:
         ctrl = self._make_controller({})
         assert ctrl._get_axis_raw("NonExistentAxis") == 0.0
 
+    def test_gamecontroller_axis_normalisation(self):
+        """When opened as a GameController, axes are read by SDL constant and
+        normalised from int16: sticks /32767 (Y inverted), triggers rest at 0."""
+        class _FakeController:
+            def __init__(self, vals): self._vals = vals
+            def get_axis(self, const): return self._vals.get(const, 0)
+
+        ctrl = self._make_controller({})  # ctrl.ctrl is None (no SDL in tests)
+        ctrl.ctrl = _FakeController({
+            thruster._CTRL_AXIS["LeftJoystickY"]: 16384,   # half down
+            thruster._CTRL_AXIS["LeftJoystickX"]: -32767,  # full left
+            thruster._CTRL_AXIS["RightTrigger"]:  32767,   # fully pulled
+            # LeftTrigger absent → rest value 0
+        })
+        # Y is inverted so a positive (down) raw reading becomes negative.
+        assert ctrl._get_axis_raw("LeftJoystickY") == pytest.approx(-16384 / 32767.0)
+        # X stick is not inverted.
+        assert ctrl._get_axis_raw("LeftJoystickX") == pytest.approx(-1.0)
+        # GameController triggers map straight to [0, 1] with no offset.
+        assert ctrl._get_axis_raw("RightTrigger") == pytest.approx(1.0)
+        assert ctrl._get_axis_raw("LeftTrigger")  == pytest.approx(0.0)
+
     def test_buttons_delegate_to_joystick(self):
         from unittest.mock import MagicMock
         js = MagicMock()

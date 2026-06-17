@@ -17,7 +17,6 @@ import argparse
 import json
 import os
 import queue
-import re
 import socket
 import sys
 import threading
@@ -96,17 +95,41 @@ BTN_RB    = 5
 BTN_BACK  = 6
 BTN_START = 7
 
-# Sign convention applied after reading a raw axis (logical, not platform-
+# Sign convention applied after reading a stick axis (logical, not platform-
 # dependent): both vertical stick axes are inverted so that up = +1.
 _AXIS_INVERT: dict[str, bool] = {
     "LeftJoystickY":  True,
     "RightJoystickY": True,
 }
 
-# Fallback physical axis indices — the SDL GameController standard layout,
-# which is also what Windows/XInput reports. Used only if the GameController
-# mapping can't be read for a device.
-# Triggers: raw range [−1, +1]; mapped to [0, 1] via (raw + 1) / 2.
+# Primary input path: SDL's GameController abstraction. SDL presents an
+# identical, normalised axis layout for every recognised pad on every platform
+# (Windows/XInput, Linux/evdev, macOS), so the same physical stick or trigger
+# always maps to the same logical axis. That is what keeps the controller
+# mapping consistent across operator laptops; reading raw joystick axis indices
+# does not, because their order is driver-dependent (e.g. Linux's legacy
+# joystick driver puts the triggers where Windows puts the right stick — the
+# source of the "swapped controls" report).
+#
+# Logical axis name → SDL GameController axis constant.
+_CTRL_AXIS: dict[str, int] = {
+    "LeftJoystickX":  getattr(pygame, "CONTROLLER_AXIS_LEFTX",        0),
+    "LeftJoystickY":  getattr(pygame, "CONTROLLER_AXIS_LEFTY",        1),
+    "RightJoystickX": getattr(pygame, "CONTROLLER_AXIS_RIGHTX",       2),
+    "RightJoystickY": getattr(pygame, "CONTROLLER_AXIS_RIGHTY",       3),
+    "LeftTrigger":    getattr(pygame, "CONTROLLER_AXIS_TRIGGERLEFT",  4),
+    "RightTrigger":   getattr(pygame, "CONTROLLER_AXIS_TRIGGERRIGHT", 5),
+}
+
+# SDL reports axes as 16-bit signed ints; divide to get the [-1, 1] floats the
+# rest of the code expects. GameController triggers rest at 0 and run to +1
+# (unlike raw joystick triggers, which rest at -1), so they need no offset.
+_AXIS_MAX = 32767.0
+
+# Fallback only — used when SDL has no GameController mapping for a device, so
+# it cannot be opened as a Controller. These are the SDL "standard" raw-joystick
+# axis indices (also what Windows/XInput reports). Triggers here rest at -1 and
+# are normalised to [0, 1] via (raw + 1) / 2.
 _DEFAULT_AXIS_IDX: dict[str, int] = {
     "LeftJoystickX":  0,
     "LeftJoystickY":  1,
@@ -115,45 +138,6 @@ _DEFAULT_AXIS_IDX: dict[str, int] = {
     "LeftTrigger":    4,
     "RightTrigger":   5,
 }
-
-# Our logical axis name → SDL GameController mapping field.
-_SDL_AXIS_FIELD: dict[str, str] = {
-    "LeftJoystickX":  "leftx",
-    "LeftJoystickY":  "lefty",
-    "RightJoystickX": "rightx",
-    "RightJoystickY": "righty",
-    "LeftTrigger":    "lefttrigger",
-    "RightTrigger":   "righttrigger",
-}
-
-_AXIS_FIELD_RE = re.compile(r"a(\d+)")
-
-
-def _resolve_axis_indices(joystick: "pygame.joystick.Joystick") -> dict[str, int]:
-    """Return {logical_name: physical pygame axis index} for *joystick*.
-
-    pygame/SDL reports a different raw-axis order depending on platform/driver.
-    On Windows (XInput) an Xbox pad enumerates as [LX, LY, RX, RY, LT, RT];
-    on Linux's legacy joystick driver it's [LX, LY, LT, RX, RY, RT], so the
-    triggers — which rest at −1.0 — land on the axes the code reads as the
-    right stick, producing constant ("passive") thruster output at idle.
-
-    SDL's GameController mapping database knows the correct per-platform layout,
-    so we read the axis indices from it instead of hardcoding them. Falls back
-    to ``_DEFAULT_AXIS_IDX`` if the mapping is unavailable.
-    """
-    idx = dict(_DEFAULT_AXIS_IDX)
-    try:
-        from pygame._sdl2 import controller
-        controller.init()
-        mapping = controller.Controller.from_joystick(joystick).get_mapping()
-        for name, field in _SDL_AXIS_FIELD.items():
-            m = _AXIS_FIELD_RE.match(str(mapping.get(field, "")))
-            if m:
-                idx[name] = int(m.group(1))
-    except Exception:
-        pass  # keep the standard-layout defaults
-    return idx
 
 # ---------------------------------------------------------------------------
 # Pure-logic helpers  (tested in tests/test_rov_math.py)
@@ -317,16 +301,25 @@ class XboxController:
     def __init__(self, joystick: pygame.joystick.Joystick) -> None:
         self.js = joystick
 
-        # Physical axis indices for this controller, resolved from SDL's
-        # GameController mapping so the layout is correct on every platform
-        # (see _resolve_axis_indices). Read before priming the triggers below.
-        self._axis_idx = _resolve_axis_indices(joystick)
+        # Open the same device through SDL's GameController API for axis reads,
+        # giving a normalised layout that is identical on every platform (see
+        # _CTRL_AXIS). If SDL has no mapping for this pad it cannot be opened as
+        # a Controller, so self.ctrl stays None and _get_axis_raw falls back to
+        # the standard raw-joystick axis indices.
+        self.ctrl = None
+        try:
+            from pygame._sdl2 import controller
+            controller.init()
+            self.ctrl = controller.Controller.from_joystick(joystick)
+        except Exception:
+            pass  # unrecognised pad → raw-joystick fallback in _get_axis_raw
 
-        # Prime triggers with actual hardware state at startup.
-        # On some Windows drivers triggers report 0.0 at rest instead of -1.0,
-        # which would produce a false 0.5 → 0.66 vertical output on first frame.
-        lt_init = (self.js.get_axis(self._axis_idx["LeftTrigger"]) + 1.0) / 2.0
-        rt_init = (self.js.get_axis(self._axis_idx["RightTrigger"]) + 1.0) / 2.0
+        # Prime triggers with their actual rest value so the first frame's
+        # smoothing does not lurch. _get_axis_raw already normalises both the
+        # GameController path (rest 0) and the raw-joystick path (rest -1), and
+        # this also absorbs Windows drivers that report a trigger at 0.0 at rest.
+        lt_init = self._get_axis_raw("LeftTrigger")
+        rt_init = self._get_axis_raw("RightTrigger")
 
         # PGO: build one AxisFilter per axis – validates dz/outer_dz/factor
         # once and pre-computes constants so the per-frame __call__ is pure math.
@@ -342,9 +335,19 @@ class XboxController:
 
     def _get_axis_raw(self, name: str) -> float:
         """Return the un-filtered hardware value for the named axis."""
+        if self.ctrl is not None:
+            const = _CTRL_AXIS.get(name)
+            if const is None:
+                return 0.0
+            val = self.ctrl.get_axis(const) / _AXIS_MAX
+            if name in ("LeftTrigger", "RightTrigger"):
+                return val            # GameController triggers: rest 0 → +1
+            return -val if _AXIS_INVERT.get(name, False) else val
+
+        # Fallback: raw joystick with the SDL standard axis layout.
         if name in ("LeftTrigger", "RightTrigger"):
-            return (self.js.get_axis(self._axis_idx[name]) + 1.0) / 2.0
-        idx = self._axis_idx.get(name)
+            return (self.js.get_axis(_DEFAULT_AXIS_IDX[name]) + 1.0) / 2.0
+        idx = _DEFAULT_AXIS_IDX.get(name)
         if idx is not None:
             raw = self.js.get_axis(idx)
             return -raw if _AXIS_INVERT.get(name, False) else raw
