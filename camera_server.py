@@ -51,6 +51,7 @@ STREAM_PORT  = 5000   # GUI connects here to receive frames
 COMMAND_PORT = 5001   # GUI connects here to send switch commands
 
 # Capture modes matching the cameras' native MJPEG modes (two camera types).
+#   "lo"   – 1280×720  @ 30fps  – low-bandwidth / lowest USB power draw
 #   "live" – 1920×1080 @ 30fps  – 1080p cameras; normal ROV piloting
 #   "hi"   – 2048×1536 @ 30fps  –  3 MP cameras at full resolution
 #   "hq"   – 4656×3496 @ 10fps  – 16 MP camera; photogrammetry capture
@@ -59,6 +60,7 @@ COMMAND_PORT = 5001   # GUI connects here to send switch commands
 # manageable even at 16 MP.  JPEG_QUALITY only affects the re-encode done
 # by the Pi before sending over Ethernet (not the USB capture itself).
 MODES = {
+    "lo":   {"width": 1280, "height": 720,  "fps": 30, "jpeg_quality": 70},
     "live": {"width": 1920, "height": 1080, "fps": 30, "jpeg_quality": 70},
     "hi":   {"width": 2048, "height": 1536, "fps": 30, "jpeg_quality": 70},
     "hq":   {"width": 4656, "height": 3496, "fps": 10, "jpeg_quality": 92},
