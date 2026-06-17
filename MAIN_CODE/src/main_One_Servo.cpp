@@ -306,15 +306,15 @@ int main() {
   thread imuThr;
   if (Config::kIMU) {
     imu = make_unique<IMU>();
-    cout << "IMU initialized at 0x68 on /dev/i2c-1\n";
+    cout << "IMU initialized at 0x68 on /dev/i2c-5\n";
     imuThr = thread(imuThread, ref(*imu));
   }
 
-  DepthSensor depthSensor;
+  DepthSensor depthSensor("/dev/i2c-1");
   thread depthThread;
   if (Config::kDepthSensor) {
     depthThread = thread(depthSensorThread, ref(depthSensor));
-    cout << "Depth sensor thread started on /dev/i2c-5 at 0x76\n";
+    cout << "Depth sensor thread started on /dev/i2c-1 at 0x76\n";
   }
 
   float clawSpinPos = 0.0f;   // ch8 servo position
