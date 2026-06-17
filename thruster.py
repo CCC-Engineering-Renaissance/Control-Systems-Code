@@ -15,9 +15,22 @@ ALS telemetry (JSON, sent to local GUI on 127.0.0.1:ALS_PORT each frame):
 
 import argparse
 import json
+import os
+import queue
+import re
 import socket
 import sys
+import threading
 import time
+
+# SDL only delivers joystick/gamepad events while one of its windows has input
+# focus. Without this hint, controller input freezes whenever another window
+# (e.g. the ROV GUI, when you leave the setup page) takes focus: a stick held
+# as focus is lost keeps its last value — thrusters keep spinning — and the
+# release never registers. Allow background joystick events so control is
+# independent of window focus. Must be set before pygame/SDL initialises.
+os.environ.setdefault("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1")
+
 import pygame
 
 # ---------------------------------------------------------------------------
@@ -26,7 +39,50 @@ import pygame
 PI_IP    = "192.168.8.128"
 PORT     = 5005
 ALS_PORT = 5006   # local GUI listening on this port
-SEND_HZ  = 100
+SEND_HZ  = 100    # control packet rate to the Pi
+STATUS_HZ = 20    # human-readable status print rate (decoupled from SEND_HZ)
+
+
+# ---------------------------------------------------------------------------
+# StatusPrinter – keep stdout from ever freezing the control loop
+# ---------------------------------------------------------------------------
+class StatusPrinter:
+    """Print status lines from a background thread via a bounded queue.
+
+    Why this exists: the control loop sends UDP at SEND_HZ. If it also calls
+    print() directly and the consumer of stdout stalls (e.g. the GUI reads the
+    process output on its main thread and falls behind), the OS pipe buffer
+    fills and print() *blocks* — which freezes the loop, stops the UDP stream,
+    and makes the Pi stale-stop every thruster after 500 ms.
+
+    Here the loop only does a non-blocking enqueue: if stdout is backed up the
+    queue fills and new lines are dropped, so logging can never stall control.
+    The daemon thread does the (possibly blocking) print() in isolation.
+    """
+
+    def __init__(self, maxsize: int = 256) -> None:
+        self._q: "queue.Queue[str | None]" = queue.Queue(maxsize=maxsize)
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def emit(self, line: str) -> None:
+        """Queue a line for printing; drop it if the consumer is backed up."""
+        try:
+            self._q.put_nowait(line)
+        except queue.Full:
+            pass  # never block the control loop on a stalled stdout reader
+
+    def _run(self) -> None:
+        while True:
+            line = self._q.get()
+            if line is None:
+                return
+            try:
+                print(line, flush=True)
+            except (BrokenPipeError, OSError):
+                return
 
 # ---------------------------------------------------------------------------
 # Xbox-style button index mapping (pygame driver default)
@@ -40,15 +96,64 @@ BTN_RB    = 5
 BTN_BACK  = 6
 BTN_START = 7
 
-# Axis index → (pygame axis index, invert)
-# Triggers: raw range [−1, +1]; mapped to [0, 1] via (raw + 1) / 2.
-_AXIS_INDEX: dict[str, tuple[int, bool]] = {
-    "LeftJoystickX":  (0, False),
-    "LeftJoystickY":  (1, True),   # inverted: up = +1
-    "RightJoystickX": (2, False),
-    "RightJoystickY": (3, True),   # inverted: up = +1
-    # Triggers handled separately (require +1/2 normalisation)
+# Sign convention applied after reading a raw axis (logical, not platform-
+# dependent): both vertical stick axes are inverted so that up = +1.
+_AXIS_INVERT: dict[str, bool] = {
+    "LeftJoystickY":  True,
+    "RightJoystickY": True,
 }
+
+# Fallback physical axis indices — the SDL GameController standard layout,
+# which is also what Windows/XInput reports. Used only if the GameController
+# mapping can't be read for a device.
+# Triggers: raw range [−1, +1]; mapped to [0, 1] via (raw + 1) / 2.
+_DEFAULT_AXIS_IDX: dict[str, int] = {
+    "LeftJoystickX":  0,
+    "LeftJoystickY":  1,
+    "RightJoystickX": 2,
+    "RightJoystickY": 3,
+    "LeftTrigger":    4,
+    "RightTrigger":   5,
+}
+
+# Our logical axis name → SDL GameController mapping field.
+_SDL_AXIS_FIELD: dict[str, str] = {
+    "LeftJoystickX":  "leftx",
+    "LeftJoystickY":  "lefty",
+    "RightJoystickX": "rightx",
+    "RightJoystickY": "righty",
+    "LeftTrigger":    "lefttrigger",
+    "RightTrigger":   "righttrigger",
+}
+
+_AXIS_FIELD_RE = re.compile(r"a(\d+)")
+
+
+def _resolve_axis_indices(joystick: "pygame.joystick.Joystick") -> dict[str, int]:
+    """Return {logical_name: physical pygame axis index} for *joystick*.
+
+    pygame/SDL reports a different raw-axis order depending on platform/driver.
+    On Windows (XInput) an Xbox pad enumerates as [LX, LY, RX, RY, LT, RT];
+    on Linux's legacy joystick driver it's [LX, LY, LT, RX, RY, RT], so the
+    triggers — which rest at −1.0 — land on the axes the code reads as the
+    right stick, producing constant ("passive") thruster output at idle.
+
+    SDL's GameController mapping database knows the correct per-platform layout,
+    so we read the axis indices from it instead of hardcoding them. Falls back
+    to ``_DEFAULT_AXIS_IDX`` if the mapping is unavailable.
+    """
+    idx = dict(_DEFAULT_AXIS_IDX)
+    try:
+        from pygame._sdl2 import controller
+        controller.init()
+        mapping = controller.Controller.from_joystick(joystick).get_mapping()
+        for name, field in _SDL_AXIS_FIELD.items():
+            m = _AXIS_FIELD_RE.match(str(mapping.get(field, "")))
+            if m:
+                idx[name] = int(m.group(1))
+    except Exception:
+        pass  # keep the standard-layout defaults
+    return idx
 
 # ---------------------------------------------------------------------------
 # Pure-logic helpers  (tested in tests/test_rov_math.py)
@@ -212,11 +317,16 @@ class XboxController:
     def __init__(self, joystick: pygame.joystick.Joystick) -> None:
         self.js = joystick
 
+        # Physical axis indices for this controller, resolved from SDL's
+        # GameController mapping so the layout is correct on every platform
+        # (see _resolve_axis_indices). Read before priming the triggers below.
+        self._axis_idx = _resolve_axis_indices(joystick)
+
         # Prime triggers with actual hardware state at startup.
         # On some Windows drivers triggers report 0.0 at rest instead of -1.0,
         # which would produce a false 0.5 → 0.66 vertical output on first frame.
-        lt_init = (self.js.get_axis(4) + 1.0) / 2.0
-        rt_init = (self.js.get_axis(5) + 1.0) / 2.0
+        lt_init = (self.js.get_axis(self._axis_idx["LeftTrigger"]) + 1.0) / 2.0
+        rt_init = (self.js.get_axis(self._axis_idx["RightTrigger"]) + 1.0) / 2.0
 
         # PGO: build one AxisFilter per axis – validates dz/outer_dz/factor
         # once and pre-computes constants so the per-frame __call__ is pure math.
@@ -232,14 +342,12 @@ class XboxController:
 
     def _get_axis_raw(self, name: str) -> float:
         """Return the un-filtered hardware value for the named axis."""
-        if name in _AXIS_INDEX:
-            idx, invert = _AXIS_INDEX[name]
+        if name in ("LeftTrigger", "RightTrigger"):
+            return (self.js.get_axis(self._axis_idx[name]) + 1.0) / 2.0
+        idx = self._axis_idx.get(name)
+        if idx is not None:
             raw = self.js.get_axis(idx)
-            return -raw if invert else raw
-        if name == "LeftTrigger":
-            return (self.js.get_axis(4) + 1.0) / 2.0
-        if name == "RightTrigger":
-            return (self.js.get_axis(5) + 1.0) / 2.0
+            return -raw if _AXIS_INVERT.get(name, False) else raw
         return 0.0
 
     def axis(
@@ -399,8 +507,13 @@ def main() -> None:
     als         = False
     als_pushed  = False
 
-    period = 1.0 / SEND_HZ
-    last   = 0.0
+    period     = 1.0 / SEND_HZ
+    last       = 0.0
+    log_period = 1.0 / STATUS_HZ
+    last_log   = 0.0
+
+    status = StatusPrinter()
+    status.start()
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock, \
          socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as als_sock:
@@ -478,19 +591,25 @@ def main() -> None:
                 }).encode()
                 als_sock.sendto(als_payload, ("127.0.0.1", ALS_PORT))
                 last = now
-                print(
-                    f"Fwd: {ljy * scale:.2f}",
-                    f"Str: {ljx * scale:.2f}",
-                    f"Vert: {vert:.2f}",
-                    f"Pitch: {pitch_out:.2f}",
-                    f"Yaw: {yaw_out:.2f}",
-                    f"Roll: {roll:.2f}",
-                    f"Slow: {slow_mode}",
-                    f"ALS: {als}",
-                    f"Spin: {claw_rotate}",
-                    f"Open: {claw_open}",
-                    f"Brush: {claw_brushless:.2f}",
-                )
+                # Status output is throttled to STATUS_HZ and routed through the
+                # StatusPrinter so a slow/stalled stdout reader can never block
+                # this loop (which would stop the UDP stream and stale-stop the
+                # thrusters on the Pi).
+                if now - last_log >= log_period:
+                    status.emit(" ".join((
+                        f"Fwd: {ljy * scale:.2f}",
+                        f"Str: {ljx * scale:.2f}",
+                        f"Vert: {vert:.2f}",
+                        f"Pitch: {pitch_out:.2f}",
+                        f"Yaw: {yaw_out:.2f}",
+                        f"Roll: {roll:.2f}",
+                        f"Slow: {slow_mode}",
+                        f"ALS: {als}",
+                        f"Spin: {claw_rotate}",
+                        f"Open: {claw_open}",
+                        f"Brush: {claw_brushless:.2f}",
+                    )))
+                    last_log = now
 
             time.sleep(0.001)
 

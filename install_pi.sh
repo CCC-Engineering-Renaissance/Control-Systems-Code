@@ -55,6 +55,14 @@ if [ -z "$PYTHON" ]; then
   exit 1
 fi
 
+# ── Wired-link speed (100 Mbps for 2-pair ROV tethers) ───────────────────────
+# ethtool is needed by set_link_100.sh, which the launcher service runs at boot.
+if ! command -v ethtool >/dev/null 2>&1; then
+  echo "Installing ethtool (needed to force the wired link to 100 Mbps)…"
+  sudo apt-get install -y ethtool || echo "WARNING: could not install ethtool — link speed will not be forced."
+fi
+chmod +x "$REPO/set_link_100.sh" 2>/dev/null || true
+
 echo "Installing rov-launcher.service: user=$RUN_USER repo=$REPO python=$PYTHON port=$PORT"
 
 sudo tee /etc/systemd/system/rov-launcher.service >/dev/null <<EOF
@@ -65,6 +73,11 @@ Wants=network-online.target
 
 [Service]
 User=$RUN_USER
+# Force the wired link to 100 Mbps full-duplex before the daemon starts.
+# '+' runs it as root (ethtool needs root even though the daemon runs as
+# $RUN_USER); '-' makes a failure non-fatal so a missing NIC/ethtool won't
+# block the launcher.
+ExecStartPre=-+$REPO/set_link_100.sh
 ExecStart=$PYTHON -u $REPO/pi_launcher.py --dir $REPO --port $PORT
 Restart=on-failure
 RestartSec=3
@@ -77,3 +90,7 @@ sudo systemctl daemon-reload
 sudo systemctl reset-failed rov-launcher 2>/dev/null || true
 sudo systemctl enable --now rov-launcher
 systemctl status rov-launcher --no-pager
+
+# Apply the 100 Mbps link now too, so it takes effect without a reboot.
+echo "Forcing wired link to 100 Mbps now…"
+sudo "$REPO/set_link_100.sh" || true

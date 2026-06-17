@@ -84,22 +84,30 @@ _VIDIOC_QUERYCAP        = 0x80685600
 _V4L2_CAP_VIDEO_CAPTURE = 0x00000001   # this node can capture video frames
 _V4L2_CAP_DEVICE_CAPS   = 0x80000000   # device_caps field is valid
 _V4L2_CAP_SIZE          = 104
+_BUS_INFO_OFFSET        = 48   # bus_info[32] — e.g. b"usb-..." for USB cameras
 _CAPABILITIES_OFFSET    = 84   # physical-device capabilities (all nodes)
 _DEVICE_CAPS_OFFSET     = 88   # per-node capabilities (this specific node)
 
 
 def _is_v4l2_capture_device(dev_path: str) -> bool:
     """
-    Return True only if this specific device node can capture video frames.
+    Return True only if this node is a *USB* camera that can capture frames.
 
-    VIDIOC_QUERYCAP exposes two capability fields:
-      • capabilities  – OR of caps across all nodes of the physical device
-      • device_caps   – caps for this specific /dev/videoN node only
+    Two checks, both from VIDIOC_QUERYCAP:
 
-    Checking only 'capabilities' (the old approach) causes false positives:
-    metadata/output sibling nodes share the same physical device, so they
-    inherit the VIDEO_CAPTURE bit even though they cannot capture frames.
-    Using 'device_caps' (per-node) correctly excludes those siblings.
+    1. Per-node VIDEO_CAPTURE. device_caps is the per-node capability set;
+       'capabilities' is OR'd across all nodes of the physical device, so
+       metadata/output siblings inherit the VIDEO_CAPTURE bit they can't honor.
+       Using device_caps excludes those siblings.
+
+    2. bus_info starts with "usb-". On the Pi 5 (RP1) the internal CFE / ISP /
+       codec nodes (e.g. /dev/video0-3, video19+) ALSO advertise VIDEO_CAPTURE,
+       but they can't be streamed like a webcam — opening them fails with
+       "Not a video capture device", which is exactly what stalled the feed.
+       Those nodes have a "platform:" bus_info; requiring "usb-" skips them and
+       reliably selects the real USB camera(s) regardless of index or
+       enumeration order.  (Note: this intentionally ignores CSI/Pi-camera-
+       module inputs — this ROV uses USB cameras.)
     """
     try:
         with open(dev_path, "rb") as f:
@@ -109,7 +117,12 @@ def _is_v4l2_capture_device(dev_path: str) -> bool:
             device_caps = struct.unpack_from("<I", buf, _DEVICE_CAPS_OFFSET)[0]
             # Prefer per-node device_caps when the kernel supplies it
             effective = device_caps if (caps & _V4L2_CAP_DEVICE_CAPS) else caps
-            return bool(effective & _V4L2_CAP_VIDEO_CAPTURE)
+            if not (effective & _V4L2_CAP_VIDEO_CAPTURE):
+                return False
+            bus_info = bytes(
+                buf[_BUS_INFO_OFFSET:_BUS_INFO_OFFSET + 32]
+            ).split(b"\x00", 1)[0]
+            return bus_info.startswith(b"usb-")
     except OSError:
         return False
 
@@ -169,7 +182,7 @@ class CameraServer:
         self._lock         = threading.Lock()
         self._cap          = None           # active cv2.VideoCapture
         self._active_name  = "front"
-        self._clients      = []             # connected stream sockets
+        self._clients      = {}             # stream socket -> outgoing bytearray
         self._running      = False
         self._mode         = DEFAULT_MODE   # "live" or "hq", switchable at runtime
 
@@ -283,26 +296,42 @@ class CameraServer:
     # ------------------------------------------------------------------
 
     def _broadcast(self, jpeg_bytes: bytes):
-        """Prepend 4-byte length header and send to all stream clients."""
+        """Queue a framed JPEG to every stream client and flush without blocking.
+
+        Each client has its own outgoing buffer. A client that has fully drained
+        its buffer receives the new frame; a client still behind has this frame
+        dropped (keep-latest). All sends are non-blocking, so one slow client
+        (e.g. on weak Wi-Fi) can never stall the capture loop for the others —
+        which previously dragged the whole stream down to a few fps.
+        """
         payload = struct.pack(">I", len(jpeg_bytes)) + jpeg_bytes
 
-        dead = []
         with self._lock:
-            clients = list(self._clients)
+            clients = list(self._clients.items())
 
-        for sock in clients:
+        dead = []
+        for sock, pending in clients:
+            if not pending:
+                pending.extend(payload)        # caught up -> send newest frame
+            # else: client is behind -> drop this frame for it (keep-latest)
             try:
-                sock.sendall(payload)
+                while pending:
+                    sent = sock.send(pending)
+                    if sent <= 0:
+                        break
+                    del pending[:sent]
+            except BlockingIOError:
+                pass                           # socket full; keep remainder for next call
             except OSError:
                 dead.append(sock)
 
         if dead:
             with self._lock:
                 for s in dead:
+                    self._clients.pop(s, None)
                     try:
-                        self._clients.remove(s)
                         s.close()
-                    except (ValueError, OSError):
+                    except OSError:
                         pass
 
     # ------------------------------------------------------------------
@@ -401,9 +430,10 @@ class CameraServer:
             try:
                 conn, addr = srv.accept()
                 conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                conn.setblocking(False)
                 log.info("Stream client connected: %s", addr)
                 with self._lock:
-                    self._clients.append(conn)
+                    self._clients[conn] = bytearray()
             except socket.timeout:
                 pass
             except OSError:
