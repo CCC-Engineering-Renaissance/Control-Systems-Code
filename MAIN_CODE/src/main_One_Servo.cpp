@@ -310,7 +310,7 @@ int main() {
     imuThr = thread(imuThread, ref(*imu));
   }
 
-  DepthSensor depthSensor("/dev/i2c-1");
+  DepthSensor depthSensor("/dev/i2c-1", 0x76, DepthSensor::MS5837_02BA);  // Bar02
   thread depthThread;
   if (Config::kDepthSensor) {
     depthThread = thread(depthSensorThread, ref(depthSensor));
