@@ -50,15 +50,17 @@ log = logging.getLogger(__name__)
 STREAM_PORT  = 5000   # GUI connects here to receive frames
 COMMAND_PORT = 5001   # GUI connects here to send switch commands
 
-# Two capture modes matching the camera's native MJPEG modes.
-#   "live" – 2048×1536 @ 30fps  – normal ROV piloting / monitoring
-#   "hq"   – 4656×3496 @ 10fps  – high-resolution photogrammetry capture
+# Capture modes matching the cameras' native MJPEG modes (two camera types).
+#   "live" – 1920×1080 @ 30fps  – 1080p cameras; normal ROV piloting
+#   "hi"   – 2048×1536 @ 30fps  –  3 MP cameras at full resolution
+#   "hq"   – 4656×3496 @ 10fps  – 16 MP camera; photogrammetry capture
 #
 # The camera outputs MJPEG natively at these modes, so USB bandwidth stays
 # manageable even at 16 MP.  JPEG_QUALITY only affects the re-encode done
 # by the Pi before sending over Ethernet (not the USB capture itself).
 MODES = {
-    "live": {"width": 2048, "height": 1536, "fps": 30, "jpeg_quality": 70},
+    "live": {"width": 1920, "height": 1080, "fps": 30, "jpeg_quality": 70},
+    "hi":   {"width": 2048, "height": 1536, "fps": 30, "jpeg_quality": 70},
     "hq":   {"width": 4656, "height": 3496, "fps": 10, "jpeg_quality": 92},
 }
 DEFAULT_MODE = "live"
@@ -222,6 +224,21 @@ class CameraServer:
         # 3-D BGR array and the capture loop falls back to re-encoding.
         cap.set(cv2.CAP_PROP_CONVERT_RGB, 0)
         cap.set(cv2.CAP_PROP_BUFFERSIZE,  1)
+
+        # Log what the camera ACTUALLY negotiated vs what we asked for — if the
+        # driver caps fps at this resolution it shows up here (e.g. "@ 15.0fps"
+        # when we requested 30), which tells us the limit is the sensor/USB and
+        # not the GUI or network.
+        fourcc_int = int(cap.get(cv2.CAP_PROP_FOURCC))
+        fourcc = "".join(chr((fourcc_int >> (8 * i)) & 0xFF) for i in range(4))
+        log.info(
+            "Negotiated: %s %dx%d @ %.1ffps  (requested %dx%d @ %dfps)",
+            fourcc,
+            int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+            cap.get(cv2.CAP_PROP_FPS),
+            mode["width"], mode["height"], mode["fps"],
+        )
 
         with self._lock:
             if self._cap is not None:
