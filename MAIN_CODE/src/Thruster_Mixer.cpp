@@ -48,15 +48,19 @@ Thruster_Outputs Thruster_Mixer::mix(const POVState& input,
   // at construction (see main_One_Servo.cpp), NOT by flipping signs here — keeping
   // direction fixes out of the mix equations is what keeps strafe/yaw from breaking
   // every time forward gets corrected.
-  // Left-side strafe signs are flipped to match how the thrusters are actually wired/mounted;
-  // if strafe comes out mirrored in the water, flip the strafe signs on the right pair instead.
+  // Strafe uses a LEFT-vs-RIGHT split: +strafe = left pair (front-left &
+  // rear-left) thrust forward, right pair (front-right & rear-right) thrust
+  // reverse. The old front-vs-rear split (front pair one way, rear pair the
+  // other) produced no net translation — the forces cancelled — which is why
+  // strafe did nothing. If strafe comes out mirrored in the water, flip the
+  // strafe signs (one-line change here).
   // Yaw uses DIAGONAL pairs: +yaw (twist right) = front-left & rear-right
   // thrust forward, front-right & rear-left thrust reverse. In spin terms
   // for the current blade config: ch0 CW, ch1 CW, ch6 CCW, ch7 CW.
-  output.frontLeftHorizontal  = forwardCommand - strafeCommand + Total_Yaw;
+  output.frontLeftHorizontal  = forwardCommand + strafeCommand + Total_Yaw;
   output.frontRightHorizontal = forwardCommand - strafeCommand - Total_Yaw;
   output.rearLeftHorizontal   = forwardCommand + strafeCommand - Total_Yaw;
-  output.rearRightHorizontal  = forwardCommand + strafeCommand + Total_Yaw;
+  output.rearRightHorizontal  = forwardCommand - strafeCommand + Total_Yaw;
 
 
   Thruster_Mixer::normalize4(
