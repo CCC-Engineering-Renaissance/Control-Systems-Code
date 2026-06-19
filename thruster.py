@@ -550,11 +550,11 @@ def main() -> None:
 
             # ── ROV axes ──────────────────────────────────────────────────
             ljy = joyROV.axis("LeftJoystickY",  dz=0.10, factor=0.2)   # forward/back
-            ljx = joyROV.axis("LeftJoystickX",  dz=0.10, factor=0.2)   # yaw (twist)
+            ljx = joyROV.axis("LeftJoystickX",  dz=0.10, factor=0.2)   # strafe
             lt  = joyROV.axis("LeftTrigger",    dz=0.05, factor=0.2)   # descend
             rt  = joyROV.axis("RightTrigger",   dz=0.05, factor=0.2)   # ascend
             rjy = joyROV.axis("RightJoystickY", dz=0.10, factor=0.2)   # pitch
-            rjx = joyROV.axis("RightJoystickX", dz=0.10, factor=0.2)   # strafe
+            rjx = joyROV.axis("RightJoystickX", dz=0.10, factor=0.2)   # yaw (twist)
 
             # RT = ascend (+vertical), LT = descend (-vertical)
             vert = (rt - lt) * scale
@@ -567,10 +567,10 @@ def main() -> None:
             roll = (joyROV.RightBumper - joyROV.LeftBumper) * scale
 
             pitch_out = rjy * scale * -1.0
-            # Side-to-side swap: left stick X drives yaw (twist), right stick X
+            # Side-to-side: right stick X drives yaw (twist), left stick X
             # drives strafe. yaw_out also feeds the yawAngle PID setpoint below.
-            yaw_out    = ljx * scale
-            strafe_out = rjx * scale
+            yaw_out    = rjx * scale
+            strafe_out = ljx * scale
 
             packet = _build_packet(
                 ljy  * scale,
