@@ -47,7 +47,9 @@ namespace {
 
   constexpr int   kChClawRotate     = 8;
   constexpr int   kChClawOpen       = 9;
-  constexpr int   kChClawBrushless  = 10;  // third claw — brushless motor
+  constexpr int   kChClawBrushless  = 11;  // brushless motor — moved off the
+                                           // dead ch10; set to whichever PCA
+                                           // port you actually wire the ESC to.
   constexpr int   kClawOffset   = 364;
   constexpr int   kClawRest     = 1500 - (0 * kClawOffset);
   constexpr int   kClawMinUs    = kClawOffset;
