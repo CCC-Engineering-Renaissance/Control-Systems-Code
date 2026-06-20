@@ -56,6 +56,7 @@ namespace {
   constexpr int   kClawMaxUs    = 1500 + kClawOffset;
   constexpr float kClawSpeed    = 1.5f;
   constexpr float kMaxThrustCoeff = 0.8f;
+  constexpr float kClawBrushlessMax = 0.60f;  // cap brushless "spinny hook" at 60% power
 
   void signalHandler(int) { keepRunning = 0; }
 
@@ -389,7 +390,7 @@ int main() {
     prevAls = input.als;
 
     clawSpinPos = clamp(clawSpinPos + input.clawRotate * kClawSpeed * dt, -1.0f, 1.0f);
-    setPowerThruster(Config::kClawBrushless, clawBrushless,  input.clawBrushless * kMaxThrustCoeff, driver);
+    setPowerThruster(Config::kClawBrushless, clawBrushless,  input.clawBrushless * kClawBrushlessMax, driver);
     clawOpenPos = clamp(clawOpenPos + input.clawOpen * kClawSpeed * dt, -1.0f, 1.0f);
 
     float measuredPitch = 0.0f;
