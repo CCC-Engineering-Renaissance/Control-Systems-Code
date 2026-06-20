@@ -200,7 +200,12 @@ int main() {
 
   Claw clawSpin(kChClawRotate, kClawRest, kClawOffset);  // ch8 — servo, Y=open / B=close
   clawSpin.setLimits(kClawMinUs, kClawMaxUs);
-  Thruster clawBrushless(kChClawBrushless);  // ch10 — brushless claw motor
+  // ch10 — A2212 920KV on a BlueRobotics ESC (bidirectional: 1500 us neutral,
+  // 1100 us full reverse, 1900 us full forward). The default Thruster limits
+  // (1228..1772) only give ~68% of that range, so set the ESC's full band
+  // explicitly: rest 1500, offset 400 -> +/-1 maps to 1100..1900 us.
+  Thruster clawBrushless(kChClawBrushless, 1500, 400);
+  clawBrushless.setLimits(1100, 1900);
 
   Claw clawOpen(kChClawOpen, kClawRest, kClawOffset);
   clawOpen.setLimits(kClawMinUs, kClawMaxUs);
