@@ -562,10 +562,12 @@ def main() -> None:
             # ── Claw controller ───────────────────────────────────────────
             claw_rotate    = int(joyClaw.Y) - int(joyClaw.B)    # Y=+1  B=-1
             claw_open      = int(joyClaw.X) - int(joyClaw.A)
-            # Brushless "spinny hook": driven like a thruster but mapped to the
-            # claw controller's RIGHT TRIGGER only — 0.0 = stopped, +1.0 = full.
-            # (Trigger rests at 0 and reads +1 pressed, so this is one-direction.)
-            claw_brushless = joyClaw.axis("RightTrigger", dz=0.05, factor=0.2)
+            # Brushless "spinny hook": RT spins one way, LT the other. Both
+            # triggers rest at 0 and read +1 pressed, so rt - lt gives
+            # [-1, +1] with 0 = stopped (same pattern as vert = rt - lt above).
+            claw_brush_rt  = joyClaw.axis("RightTrigger", dz=0.05, factor=0.2)
+            claw_brush_lt  = joyClaw.axis("LeftTrigger",  dz=0.05, factor=0.2)
+            claw_brushless = claw_brush_rt - claw_brush_lt
 
             roll = (joyROV.RightBumper - joyROV.LeftBumper) * scale
 
