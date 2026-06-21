@@ -200,6 +200,16 @@ class CameraServer:
             )
             return False
 
+        # Release any existing capture first. set_mode() reopens the SAME
+        # camera index to change resolution/fps — opening a second handle
+        # while the old one is still mid-stream fails ("device busy"), which
+        # left the camera silently stuck on the previous mode's fps after a
+        # failed switch (e.g. stuck at HQ's 10fps after switching to Hi-Res).
+        with self._lock:
+            if self._cap is not None:
+                self._cap.release()
+                self._cap = None
+
         # Retry up to 3 times — a USB camera on a hub can take a moment to
         # become available again after a brief disconnect or power fluctuation.
         for attempt in range(1, 4):
@@ -256,8 +266,6 @@ class CameraServer:
         )
 
         with self._lock:
-            if self._cap is not None:
-                self._cap.release()
             self._cap         = cap
             self._active_name = name
 
