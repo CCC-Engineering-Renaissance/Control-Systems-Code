@@ -65,7 +65,13 @@ MODES = {
     "hi":   {"width": 2048, "height": 1536, "fps": 30, "jpeg_quality": 70},
     "hq":   {"width": 4656, "height": 3496, "fps": 10, "jpeg_quality": 92},
 }
-DEFAULT_MODE = "live"
+# NOTE: the 16 MP USB cameras only expose two real MJPEG modes — 2048×1536 @ 30fps
+# ("hi") and 4656×3496 @ 10fps ("hq"). Requesting any other resolution (e.g. the
+# "lo"/"live" entries above, kept for 1080p camera variants) makes V4L2 silently
+# fall back to the sensor's native 16 MP, which is hardware-capped at 10fps. So the
+# default must be a resolution the camera actually supports, or you stream full
+# 16 MP at 10fps without realising it.
+DEFAULT_MODE = "hi"
 
 # Camera slot names in the order they will be assigned to discovered devices.
 # The first working /dev/videoN gets "front", the second gets "left", etc.
