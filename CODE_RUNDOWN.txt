@@ -1,0 +1,340 @@
+================================================================================
+ CONTROL SYSTEMS CODE — COMPLETE RUNDOWN
+ Underwater ROV (Remotely Operated Vehicle) control software
+ Generated: 2026-06-22
+================================================================================
+
+This repository is the software for an underwater ROV (MATE-competition style).
+It runs across three machines:
+
+  - OPERATOR LAPTOP (topside)  : reads gamepads, sends control packets, runs GUI
+  - RASPBERRY PI (inside ROV)  : real-time control loop, camera streaming, launcher
+  - ROV HARDWARE              : thrusters, servos, IMU, depth sensor over I2C
+
+Languages: roughly half Python (topside + Pi-side glue/camera) and half C++
+(the Pi-side real-time control loop).
+
+
+================================================================================
+ 1. ARCHITECTURE AT A GLANCE
+================================================================================
+
+   LAPTOP (topside)                    RASPBERRY PI (in ROV)              HARDWARE
+ +--------------------+    UDP 5005   +----------------------+  I2C    +--------------+
+ | thruster.py        |--control----> | rov / OneServo (C++) |-------> | PCA9685 PWM  |--> 8 thrusters
+ |  (gamepad -> UDP)  |               |  main_One_Servo.cpp  |         | driver       |--> 2 servos + brushless
+ |                    | <--telemetry--|  (control loop)      | <------ | MPU6050 IMU  |
+ | GUI (not in repo)  |   UDP 5006    |                      |         | MS5837 depth |
+ |                    | TCP 5000/5001 | camera_server.py     |<------  | USB cameras  |
+ |                    |<--video/cmd-->|                      |         +--------------+
+ |                    |   TCP 5010    | pi_launcher.py       |
+ |                    |<--start/stop->|  (systemd daemon)    |
+ +--------------------+               +----------------------+
+
+The GUI itself is NOT in this repo — these are the backend processes it talks to.
+
+
+================================================================================
+ 2. TOPSIDE (LAPTOP) — PYTHON
+================================================================================
+
+thruster.py  — THE REAL CONTROLLER SENDER (primary)
+---------------------------------------------------
+Reads TWO Xbox gamepads (one for ROV motion, one for the claw), filters input,
+and broadcasts a 12-field UDP packet at 100 Hz to the Pi at 192.168.8.128:5005.
+
+  - Input layer: Uses SDL's GameController abstraction (via pygame) so axis
+    layout is identical across Windows/Linux/macOS — fixes the "swapped
+    controls" problem from reading raw joystick indices. Falls back to raw
+    joystick indices for unrecognized pads.
+  - Signal conditioning: apply_deadzone (inner + outer deadzones, re-scaled to
+    fill [-1,1]) and smooth (single-pole IIR low-pass). Wrapped in an AxisFilter
+    class that pre-validates and pre-computes constants once — a deliberate
+    hot-path optimization (axes filtered 7x per frame).
+  - Control mapping: left stick = forward/strafe, right stick = pitch/yaw,
+    triggers = vertical (RT ascend / LT descend), bumpers = roll. Slow mode
+    (Y latches 35% power, B restores 75%). ALS toggle (START button).
+  - Robustness: StatusPrinter runs all print() on a background thread via a
+    bounded queue, so a stalled stdout reader (e.g. the GUI) can never block the
+    control loop — which would freeze the UDP stream and trigger the failsafe.
+  - Packet format (space-separated, newline-terminated):
+      forward strafe vertical yaw pitch roll
+      clawRotate clawOpen clawBrushless pitchAngle yawAngle als
+  - Also emits ALS telemetry as JSON to a local GUI on 127.0.0.1:5006.
+
+laptop.py  — older/simpler single-gamepad sender
+------------------------------------------------
+Sends the same packet shape at 50 Hz but with all motion values HARDCODED to 0
+— currently only wired for claw buttons. Legacy/test scaffold (different IP
+10.0.0.195, no deadzone/smoothing). Largely superseded by thruster.py.
+
+
+================================================================================
+ 3. PI-SIDE GLUE — PYTHON
+================================================================================
+
+pi_launcher.py  — remote task daemon
+------------------------------------
+Stdlib-only TCP daemon (port 5010) so the GUI can start/stop Pi programs
+without SSH. Newline-delimited JSON protocol (ping/status/start/stop/tail).
+Manages three tasks: oneservo (C++ control binary), camera (camera_server.py),
+build (runs make). Tracks subprocess state, keeps a 500-line ring buffer of each
+task's output, and escalates stop signals SIGINT -> SIGTERM -> SIGKILL.
+Installed as a systemd service.
+
+camera_server.py  — video streaming
+-----------------------------------
+Captures from USB cameras and broadcasts length-prefixed JPEG frames over
+TCP 5000; accepts camera-switch / mode commands on TCP 5001.
+
+  - Device auto-detection via raw V4L2 VIDIOC_QUERYCAP ioctls — filters to real
+    USB capture nodes (bus_info starts with "usb-"), skipping the Pi 5's
+    internal ISP/codec nodes that falsely advertise capture capability.
+  - Performance: requests MJPEG from the camera and sets CONVERT_RGB=0 so OpenCV
+    passes raw JPEG bytes through WITHOUT a decode+re-encode cycle (the main FPS
+    bottleneck). Multiple resolution modes from 720p up to 16 MP.
+  - Keep-latest broadcasting: each client has its own buffer; a slow client
+    drops frames rather than stalling the capture loop for everyone.
+
+install_pi.sh / set_link_100.sh
+-------------------------------
+One-time Pi setup: registers the i2c-gpio overlay creating /dev/i2c-5 for the
+depth sensor (GPIO 12/13), installs the systemd unit (user-agnostic — doesn't
+assume username "pi"), and forces the wired tether link to 100 Mbps (for 2-pair
+ROV tethers).
+
+
+================================================================================
+ 4. ROV CONTROL — C++ (MAIN_CODE/)
+================================================================================
+
+Built with a Makefile (g++, C++17, Boost.Asio + libi2c). Produces several
+binaries; the actively-used one is OneServo (main_One_Servo.cpp). main.cpp is
+the older/simpler variant.
+
+CONTROL LOOP (main_One_Servo.cpp)
+---------------------------------
+  1. Spawns a network thread (server()) that receives UDP and stores the latest
+     POVState behind a mutex.
+  2. Spawns IMU (100 Hz) and depth-sensor threads, publishing readings via
+     atomics.
+  3. Main loop: checks packet freshness (is_Fresh, 500 ms stale timeout) -> if
+     stale, stops all thrusters (failsafe) and holds claw position. If fresh,
+     runs the mixer and writes PWM.
+  4. SafeStop RAII guard neutralizes all thrusters on any exit path (signal,
+     exception).
+  5. Sends JSON telemetry at 20 Hz to the topside (depth, temp, pressure,
+     attitude, depth setpoint, ALS state, all PID gains) on UDP 5006.
+  6. A Config namespace has compile-time on/off flags for every thruster/sensor
+     — handy for bench testing.
+
+KEY C++ MODULES
+---------------
+  connection.cpp / .h  — UDP receiver (non-blocking socket + select with 100 ms
+    timeout so it checks the stop flag). Parses the 12 fields into POVState;
+    malformed packets are dropped, keeping last-good state. Thread-safe
+    get_State / set_State / is_Fresh.
+
+  Thruster_Mixer.cpp  — the motion-mixing math. Forward/strafe/yaw mix into 4
+    horizontal thrusters (strafe = left-vs-right split, yaw = diagonal pairs);
+    vertical/pitch/roll mix into 4 vertical thrusters. Each group is normalize4'd
+    so no thruster exceeds full scale. Direction fixes are deliberately kept OUT
+    of the mix (handled by per-thruster setInverted) so corrections don't break
+    other axes.
+
+  Thruster.cpp  — maps normalized power [-1,1] -> PWM microseconds around a
+    1500 us neutral, with two-layer safety clamping (absolute limits + symmetric
+    window around rest), a 3% software deadband against ESC creep, and an
+    inverted flag for wiring/blade differences.
+
+  Claw.cpp  — same idea but for servos (position instead of thrust); ch8 spin
+    servo, ch9 open/close servo. The brushless "spinny hook" on ch10/11 is driven
+    as a Thruster (BlueRobotics ESC, 1100-1900 us bidirectional).
+
+  PID.cpp  — standard PID with integral anti-windup (+/-100) and derivative
+    clamping. Used for yaw/pitch/roll hold and depth hold, but only engaged when
+    ALS is on. On ALS rising edge the current depth is latched as the setpoint;
+    PID output drives vertical (negated because depth is positive-down).
+
+  PCA9685.cpp / I2CPeripheral.cpp / TCA9548A.cpp  — I2C drivers for the
+    16-channel PWM chip, low-level I2C peripheral base, and I2C multiplexer.
+
+  IMU.cpp / MPU6050.cpp  — attitude (pitch/yaw/roll) from the MPU6050.
+
+  Depth_Sensor.cpp  — MS5837 (Bar02/Bar30) pressure->depth, zeroed at surface on
+    startup.
+
+HARDWARE CHANNEL MAP (PCA9685)
+------------------------------
+  ch0-1   front horizontals
+  ch6-7   rear horizontals
+  ch2-5   verticals
+  ch8     spin servo
+  ch9     claw open/close servo
+  ch10/11 brushless hook
+  IMU   at 0x68 on /dev/i2c-5
+  Depth at 0x76 on /dev/i2c-1
+  PCA9685 at 0x40 on /dev/i2c-4
+
+
+================================================================================
+ 5. TESTS & BENCHES
+================================================================================
+
+  tests/test_rov_math.py        — unit tests for the pure helpers (clamp,
+                                   apply_deadzone, smooth) with a mocked pygame
+                                   so it runs headless. Written test-first.
+  tests/test_packet_transfer.py — UDP packet round-trip.
+  MAIN_CODE/tests/              — C++ checks (thruster_logic_test.cpp,
+                                   direction_check.cpp, udp_roundtrip_check.cpp)
+                                   with a fake PCA9685.
+  bench/                        — profile_loop.py, speed_test.py for the topside
+                                   loop.
+  Misc top-level scaffolds      — axistest.py, cam.py, test_controllers.py.
+
+
+================================================================================
+ 6. NOTABLE DESIGN THEMES
+================================================================================
+
+  - Failsafe-first: stale-packet timeouts stop thrusters; RAII guards neutralize
+    on exit; deadbands prevent creep.
+  - Never block the control loop: non-blocking sockets, threaded printing,
+    keep-latest frame dropping all exist specifically so a slow consumer can't
+    freeze real-time control.
+  - Cross-platform input correctness: the SDL GameController layer is the fix for
+    inconsistent gamepad mappings.
+  - PID stabilization is opt-in via the ALS button (depth/attitude hold),
+    otherwise fully manual.
+
+
+================================================================================
+ 7. PROS OF THE CODE
+================================================================================
+
+SAFETY & RELIABILITY
+  + Strong failsafe design. Stale-packet timeout (500 ms) stops all thrusters if
+    the control link drops; the RAII SafeStop guard neutralizes everything on any
+    exit path including exceptions and signals. This is exactly right for a
+    vehicle that can run away underwater.
+  + Multiple layers of output clamping (power clamp, absolute PWM limits,
+    symmetric window around neutral) make it very hard to command unsafe PWM.
+  + Software deadband (3%) prevents ESC creep from drift — thrusters truly stop
+    at neutral.
+  + ESCs are sent neutral on boot and armed with a delay before the loop starts,
+    avoiding garbage-PWM startup behavior.
+
+REAL-TIME ROBUSTNESS
+  + The control loop is carefully protected from blocking: non-blocking UDP with
+    select(), background-thread status printing with a bounded drop-queue, and
+    keep-latest frame broadcasting. A slow GUI / stalled pipe / weak Wi-Fi client
+    cannot freeze control. This is a genuinely mature insight that many hobby ROV
+    codebases get wrong.
+  + Sensor reads (IMU 100 Hz, depth) run on their own threads and publish via
+    atomics, decoupling sensor latency from the control rate.
+
+CODE QUALITY & MAINTAINABILITY
+  + Excellent commenting. Many comments explain WHY (e.g. the SDL GameController
+    rationale, the strafe left/right split vs front/rear, the CONVERT_RGB=0
+    optimization) not just what. Future maintainers will understand the traps.
+  + Clean separation of concerns: input filtering, mixing math, hardware driver,
+    PID, and networking are each isolated and individually testable.
+  + Pure-logic helpers (clamp/deadzone/smooth, mixer) are unit-tested, including
+    a headless pygame mock so tests run in CI without hardware.
+  + Thoughtful performance work (AxisFilter PGO, %-format packet building) with
+    measured before/after numbers.
+  + Cross-platform controller handling is solved properly rather than hacked.
+
+OPERATIONS
+  + pi_launcher.py + systemd lets the operator start/stop/build everything from
+    the GUI without SSH — a real usability win at competition.
+  + install script is user-agnostic (doesn't hardcode "pi") and idempotent.
+  + Telemetry stream (depth/attitude/PID gains at 20 Hz) supports live tuning and
+    dashboards.
+  + Compile-time Config flags make bench-testing individual subsystems easy.
+
+
+================================================================================
+ 8. CONS / RISKS / TECH DEBT
+================================================================================
+
+DUPLICATION & DEAD CODE
+  - THRUSTER_PCA9685/ is a near-duplicate, older copy of the C++ control code.
+    Two divergent copies invite confusion and bug-fix drift. Should be removed or
+    clearly archived.
+  - Multiple legacy variants coexist: laptop.py (motion hardcoded to 0) vs
+    thruster.py, and main.cpp vs main_One_Servo.cpp. Not obvious to a newcomer
+    which is canonical. A short README / file headers marking "ACTIVE" vs
+    "LEGACY" would help.
+  - Vendored Eigen and Boost (thousands of files) are checked into the repo.
+    Eigen does not appear to be used at all — dead weight bloating the repo and
+    git history. Consider removing Eigen and using a package manager / submodule
+    for Boost.
+
+CONTROL CORRECTNESS GAPS
+  - In main.cpp the IMU/measured values are hardcoded placeholders (0.0), so its
+    PID does nothing useful. (main_One_Servo.cpp wires real IMU, but the stale
+    main.cpp remaining in the tree is a footgun.)
+  - PID gains are extremely small (Kp=0.02 for yaw/pitch/roll) and Ki=0 — these
+    look like untuned placeholders rather than field-tuned values. Roll setpoint
+    is hardcoded to 0 with no operator control. Depth-hold and attitude-hold need
+    real in-water tuning; current gains likely produce sluggish or negligible
+    correction.
+  - The mixer normalizes horizontal and vertical groups independently, so total
+    commanded thrust can still exceed what the power budget/battery can deliver
+    when many axes are commanded at once (no global current/power limit).
+  - No yaw angle wrap-around handling visible — if measuredYaw is in degrees and
+    can wrap +/-180, the yaw PID could spin the wrong way near the discontinuity.
+
+NETWORKING & SECURITY
+  - Hardcoded IP addresses scattered across files (192.168.8.128, 192.168.8.189,
+    10.0.0.195) and inconsistent between modules. Easy to mis-wire on a new
+    network; should be centralized in config / CLI args / env vars.
+  - UDP control has no authentication, sequencing, or integrity check. Any host
+    on the network can drive the ROV, and there's no detection of out-of-order or
+    spoofed packets (only freshness). Fine for an isolated tether LAN, risky
+    otherwise.
+  - pi_launcher.py binds 0.0.0.0 and will start/stop/build processes for ANY
+    client with no auth. On a shared network this is a remote-control surface.
+  - camera_server.py and the launcher both trust the network fully (no limits on
+    client count, no rate limiting).
+
+ROBUSTNESS DETAILS
+  - The control loop runs at a fixed ~2 ms sleep rather than a true fixed-rate
+    scheduler; dt is measured and clamped, but loop timing can jitter under load.
+  - Telemetry/print uses cout in the hot loop in some paths; while mostly gated,
+    blocking stdout on the Pi could still affect timing in edge cases.
+  - main_One_Servo.cpp calls system("ip ... | grep ...") at startup — a shell-out
+    that's both a (minor) security smell and platform-fragile.
+  - Magic numbers abound (PWM limits, offsets, ports, thresholds). Many are
+    documented in comments but not centralized; changing hardware means hunting
+    through several files.
+
+TESTING & TOOLING
+  - Test coverage is good for pure helpers but thin for integration: the mixer
+    sign conventions, PID behavior, and the full UDP-to-PWM path rely heavily on
+    in-water trial. More host-side simulation tests (fake driver + asserted PWM
+    outputs for known inputs) would catch direction/sign regressions before they
+    reach the water.
+  - No CI configuration visible; tests appear to be run manually.
+  - .gitignore only excludes build artifacts; compiled .pyc and venvs appear in
+    the tree, suggesting some build hygiene gaps.
+
+
+================================================================================
+ 9. SUMMARY
+================================================================================
+
+This is a well-engineered, safety-conscious ROV codebase whose standout
+strengths are its failsafe behavior, its disciplined "never block the control
+loop" design, and unusually good explanatory comments. The main weaknesses are
+organizational rather than algorithmic: duplicated/legacy code paths, vendored
+dependencies bloating the repo, scattered hardcoded configuration, untuned PID
+gains, and an open (unauthenticated) network control surface. Cleaning up the
+duplicates, centralizing configuration, tuning the controllers in water, and
+adding integration-level simulation tests would take it from "solid competition
+code" to "production-grade."
+
+================================================================================
+ END
+================================================================================
