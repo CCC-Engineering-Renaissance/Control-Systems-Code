@@ -42,7 +42,7 @@ namespace {
   constexpr unsigned short kTelemPort   = 5006;
   constexpr const char*    kTopsideIP   = "192.168.8.189";   // topside PC IP
   constexpr auto kTelemInterval         = chrono::milliseconds(50);   // 20 Hz
-  constexpr int   kStalePacketMs        = 500;
+  constexpr int   kStalePacketMs        = 5000;
   constexpr float kMaxDt                = 0.1f;
 
   constexpr int   kChClawRotate     = 8;

@@ -3,8 +3,6 @@
 #include "Thruster.h"
 #include "Thruster_Mixer.h"
 #include "connection.h"
-//#include <Eigen/Dense>
-//#include <Eigen/QR>
 #include <arpa/inet.h>
 #include <chrono>
 #include <cmath>

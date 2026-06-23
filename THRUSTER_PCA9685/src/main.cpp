@@ -3,8 +3,6 @@
 #include "PCA9685.h"
 #include "Thruster.h"
 #include "connection.h"
-//#include <Eigen/Dense>
-//#include <Eigen/QR>
 #include <arpa/inet.h>
 #include <chrono>
 #include <cmath>

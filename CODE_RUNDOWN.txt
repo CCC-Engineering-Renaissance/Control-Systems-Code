@@ -108,7 +108,7 @@ ROV tethers).
  4. ROV CONTROL — C++ (MAIN_CODE/)
 ================================================================================
 
-Built with a Makefile (g++, C++17, Boost.Asio + libi2c). Produces several
+Built with a Makefile (g++, C++17, system Boost.Asio + libi2c). Produces several
 binaries; the actively-used one is OneServo (main_One_Servo.cpp). main.cpp is
 the older/simpler variant.
 
@@ -118,7 +118,7 @@ CONTROL LOOP (main_One_Servo.cpp)
      POVState behind a mutex.
   2. Spawns IMU (100 Hz) and depth-sensor threads, publishing readings via
      atomics.
-  3. Main loop: checks packet freshness (is_Fresh, 500 ms stale timeout) -> if
+  3. Main loop: checks packet freshness (is_Fresh, 5000 ms stale timeout) -> if
      stale, stops all thrusters (failsafe) and holds claw position. If fresh,
      runs the mixer and writes PWM.
   4. SafeStop RAII guard neutralizes all thrusters on any exit path (signal,
@@ -213,7 +213,7 @@ HARDWARE CHANNEL MAP (PCA9685)
 ================================================================================
 
 SAFETY & RELIABILITY
-  + Strong failsafe design. Stale-packet timeout (500 ms) stops all thrusters if
+  + Strong failsafe design. Stale-packet timeout (5000 ms) stops all thrusters if
     the control link drops; the RAII SafeStop guard neutralizes everything on any
     exit path including exceptions and signals. This is exactly right for a
     vehicle that can run away underwater.
@@ -266,10 +266,11 @@ DUPLICATION & DEAD CODE
     thruster.py, and main.cpp vs main_One_Servo.cpp. Not obvious to a newcomer
     which is canonical. A short README / file headers marking "ACTIVE" vs
     "LEGACY" would help.
-  - Vendored Eigen and Boost (thousands of files) are checked into the repo.
-    Eigen does not appear to be used at all — dead weight bloating the repo and
-    git history. Consider removing Eigen and using a package manager / submodule
-    for Boost.
+  - Vendored Eigen and Boost (removed). Eigen was unused and has been deleted.
+    Boost is no longer vendored; Boost.Asio is now consumed from the system
+    package (install libboost-system-dev / libboost-dev on the Pi). Note that
+    the ~33k deleted files still live in prior git history; a history rewrite
+    (git filter-repo / BFG) would be needed to reclaim that space fully.
 
 CONTROL CORRECTNESS GAPS
   - In main.cpp the IMU/measured values are hardcoded placeholders (0.0), so its
@@ -328,8 +329,8 @@ TESTING & TOOLING
 This is a well-engineered, safety-conscious ROV codebase whose standout
 strengths are its failsafe behavior, its disciplined "never block the control
 loop" design, and unusually good explanatory comments. The main weaknesses are
-organizational rather than algorithmic: duplicated/legacy code paths, vendored
-dependencies bloating the repo, scattered hardcoded configuration, untuned PID
+organizational rather than algorithmic: duplicated/legacy code paths, scattered
+hardcoded configuration, untuned PID
 gains, and an open (unauthenticated) network control surface. Cleaning up the
 duplicates, centralizing configuration, tuning the controllers in water, and
 adding integration-level simulation tests would take it from "solid competition
