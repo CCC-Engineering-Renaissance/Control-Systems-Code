@@ -567,7 +567,7 @@ def main() -> None:
             rjx = joyROV.axis("RightJoystickX", dz=0.10, factor=0.2)   # yaw (twist)
 
             # RT = ascend (+vertical), LT = descend (-vertical)
-            vert = (rt - lt) * scale
+            vert = (rt - lt) * 1.0
 
             # ── Claw controller ───────────────────────────────────────────
             claw_rotate    = int(joyClaw.Y) - int(joyClaw.B)    # Y=+1  B=-1
