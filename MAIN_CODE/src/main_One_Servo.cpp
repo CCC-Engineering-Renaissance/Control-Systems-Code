@@ -47,7 +47,7 @@ namespace {
 
   constexpr int   kChClawRotate     = 8;
   constexpr int   kChClawOpen       = 9;
-  constexpr int   kChClawBrushless  = 11;  // brushless motor — moved off the
+  constexpr int   kChClawBrushless  = 10;  // brushless motor — moved off the
                                            // dead ch10; set to whichever PCA
                                            // port you actually wire the ESC to.
   constexpr int   kClawOffset   = 364;
@@ -460,10 +460,10 @@ int main() {
     const Thruster_Outputs output =
         mixer.mix(mixInput, yawPIDOutput, pitchPIDOutput, rollPIDOutput);
 
-    setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  output.frontLeftHorizontal * kMaxThrustCoeff,  driver);
-    setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, output.frontRightHorizontal * kMaxThrustCoeff, driver);
-    setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   output.rearLeftHorizontal * kMaxThrustCoeff,   driver);
-    setPowerThruster(Config::kRearRightHorizontal,  rearRightHorizontal,  output.rearRightHorizontal * kMaxThrustCoeff,  driver);
+    setPowerThruster(Config::kFrontLeftHorizontal,  frontLeftHorizontal,  output.frontLeftHorizontal * kMaxThrustCoeff * 0.70,  driver);
+    setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, output.frontRightHorizontal * kMaxThrustCoeff * 0.70, driver);
+    setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   output.rearLeftHorizontal * kMaxThrustCoeff * 0.70,   driver);
+    setPowerThruster(Config::kRearRightHorizontal,  rearRightHorizontal,  output.rearRightHorizontal * kMaxThrustCoeff * 0.70,  driver);
     setPowerThruster(Config::kLeftVertical,         leftVertical,         output.leftVertical * kVertCoeff,         driver);
     setPowerThruster(Config::kRightVertical,        rightVertical,        output.rightVertical * kVertCoeff,        driver);
     setPowerThruster(Config::kLeftVertical2,        leftVertical2,        output.leftVertical2 * kVertCoeff,        driver);
