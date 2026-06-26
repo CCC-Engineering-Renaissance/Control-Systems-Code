@@ -333,6 +333,13 @@ int main() {
   float depthSetpoint = 0.0f;   // locked when ALS first activates
   bool  prevAls       = false;  // edge-detect ALS toggle
 
+  // Vertical-thruster boost: A removes the kMaxThrustCoeff limiter on the 4
+  // vertical thrusters (full power), X restores normal. Latched here so the
+  // limiter state persists between button presses.
+  bool  vertBoost   = false;  // true => verticals run at full power
+  bool  prevBoost   = false;  // edge-detect A button
+  bool  prevRestore = false;  // edge-detect X button
+
   auto lastTime = chrono::steady_clock::now();
   bool wasWaiting = true;
 
@@ -389,6 +396,21 @@ int main() {
     }
     prevAls = input.als;
 
+    // Vertical-boost toggle — A removes the limiter, X restores it.
+    if (input.boostBtn && !prevBoost && !vertBoost) {
+      vertBoost = true;
+      cout << "BOOST ON  — vertical thrusters at full power\n";
+    }
+    if (input.restoreBtn && !prevRestore && vertBoost) {
+      vertBoost = false;
+      cout << "BOOST OFF — vertical thrusters limited to "
+                << kMaxThrustCoeff << "\n";
+    }
+    prevBoost   = input.boostBtn;
+    prevRestore = input.restoreBtn;
+
+    const float kVertCoeff = vertBoost ? 1.0f : kMaxThrustCoeff;
+
     clawSpinPos = clamp(clawSpinPos + input.clawRotate * kClawSpeed * dt, -1.0f, 1.0f);
     setPowerThruster(Config::kClawBrushless, clawBrushless,  input.clawBrushless * kClawBrushlessMax, driver);
     clawOpenPos = clamp(clawOpenPos + input.clawOpen * kClawSpeed * dt, -1.0f, 1.0f);
@@ -442,10 +464,10 @@ int main() {
     setPowerThruster(Config::kFrontRightHorizontal, frontRightHorizontal, output.frontRightHorizontal * kMaxThrustCoeff, driver);
     setPowerThruster(Config::kRearLeftHorizontal,   rearLeftHorizontal,   output.rearLeftHorizontal * kMaxThrustCoeff,   driver);
     setPowerThruster(Config::kRearRightHorizontal,  rearRightHorizontal,  output.rearRightHorizontal * kMaxThrustCoeff,  driver);
-    setPowerThruster(Config::kLeftVertical,         leftVertical,         output.leftVertical * kMaxThrustCoeff,         driver);
-    setPowerThruster(Config::kRightVertical,        rightVertical,        output.rightVertical * kMaxThrustCoeff,        driver);
-    setPowerThruster(Config::kLeftVertical2,        leftVertical2,        output.leftVertical2 * kMaxThrustCoeff,        driver);
-    setPowerThruster(Config::kRightVertical2,       rightVertical2,       output.rightVertical2 * kMaxThrustCoeff,       driver);
+    setPowerThruster(Config::kLeftVertical,         leftVertical,         output.leftVertical * kVertCoeff,         driver);
+    setPowerThruster(Config::kRightVertical,        rightVertical,        output.rightVertical * kVertCoeff,        driver);
+    setPowerThruster(Config::kLeftVertical2,        leftVertical2,        output.leftVertical2 * kVertCoeff,        driver);
+    setPowerThruster(Config::kRightVertical2,       rightVertical2,       output.rightVertical2 * kVertCoeff,       driver);
 
     // ── Telemetry send (20 Hz) ───────────────────────────────────────────
     auto tNow = chrono::steady_clock::now();

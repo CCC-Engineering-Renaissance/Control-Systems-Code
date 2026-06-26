@@ -127,6 +127,15 @@ void server(unsigned short port) {
       }
 
       temp.als = (alsInt != 0);
+
+      // Optional trailing fields: A/X vertical-boost buttons. Older topside
+      // senders omit them, so a failed extraction just leaves them at 0/false
+      // rather than rejecting the packet.
+      int boostInt = 0, restoreInt = 0;
+      ss >> boostInt >> restoreInt;
+      temp.boostBtn   = (boostInt != 0);
+      temp.restoreBtn = (restoreInt != 0);
+
       set_State(temp);
     }
   } catch (std::exception& e) {

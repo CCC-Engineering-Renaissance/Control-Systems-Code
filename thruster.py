@@ -2,12 +2,13 @@
 thruster.py – ROV laptop-side controller-input → UDP sender
 ============================================================
 Reads two Xbox-style gamepads (ROV + Claw), applies deadzone /
-smoothing, and broadcasts a 12-field UDP datagram to the Pi at
+smoothing, and broadcasts a 14-field UDP datagram to the Pi at
 SEND_HZ frames per second.
 
 UDP packet format (space-separated, newline-terminated):
   forward  strafe  vertical  yaw  pitch  roll
   clawRotate  clawOpen  clawBrushless  pitchAngle  yawAngle  als
+  boostBtn  restoreBtn
 
 ALS telemetry (JSON, sent to local GUI on 127.0.0.1:ALS_PORT each frame):
   { "als": bool, "pitch": float, "yaw": float }
@@ -469,7 +470,8 @@ _PACKET_FMT = (
     "%.4f %.4f %.4f "
     "%.4f %.4f %.4f "
     "%d %d %.4f "
-    "%.4f %.4f %d\n"
+    "%.4f %.4f %d "
+    "%d %d\n"
 )
 
 
@@ -480,17 +482,25 @@ def _build_packet(
     claw_rotate: int, claw_open: int, claw_brushless: float,
     pitch_angle: float = 0.0, yaw_angle: float = 0.0,
     als: int = 0,
+    boost_btn: int = 0, restore_btn: int = 0,
 ) -> bytes:
-    """Format the 12-field UDP datagram and return it as bytes.
+    """Format the 14-field UDP datagram and return it as bytes.
 
     Fields (space-separated, newline-terminated):
       forward  strafe  vertical  yaw  pitch  roll
       clawRotate  clawOpen  clawBrushless  pitchAngle  yawAngle  als
+      boostBtn  restoreBtn
+
+    boostBtn / restoreBtn carry the raw ROV-pad A / X button states; the Pi
+    latches them to remove (A) or restore (X) the vertical-thruster limiter.
+    The two fields are appended last so an older Pi build that parses only the
+    first 12 fields ignores them harmlessly.
     """
     return (_PACKET_FMT % (
         ljy, ljx, vert, rjx, rjy, roll,
         claw_rotate, claw_open, claw_brushless,
         pitch_angle, yaw_angle, als,
+        boost_btn, restore_btn,
     )).encode()
 
 
@@ -569,6 +579,12 @@ def main() -> None:
             claw_brush_lt  = joyClaw.axis("LeftTrigger",  dz=0.05, factor=0.2)
             claw_brushless = claw_brush_rt - claw_brush_lt
 
+            # ── Vertical-thruster boost: A removes the limiter, X restores ──
+            # Raw button states; the Pi latches them (A → full power on the 4
+            # vertical thrusters, X → back to the normal limit).
+            boost_btn   = int(joyROV.A)
+            restore_btn = int(joyROV.X)
+
             roll = (joyROV.RightBumper - joyROV.LeftBumper) * scale
 
             pitch_out = rjy * scale * -1.0
@@ -590,6 +606,8 @@ def main() -> None:
                 pitch_out,
                 yaw_out,
                 int(als),
+                boost_btn,
+                restore_btn,
             )
 
             now = time.time()

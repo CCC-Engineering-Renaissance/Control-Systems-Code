@@ -20,6 +20,12 @@ struct POVState{
   float yawAngle = 0.0f;
 
   bool als = false;
+
+  // Vertical-thruster boost (removes the kMaxThrustCoeff limiter on the 4
+  // vertical thrusters). Raw button states from the ROV pad; the latch lives
+  // in main: A turns the limiter off (full power), X restores normal.
+  bool boostBtn   = false;  // A button (remove limiter)
+  bool restoreBtn = false;  // X button (restore limiter)
 };
 
 extern POVState state;
